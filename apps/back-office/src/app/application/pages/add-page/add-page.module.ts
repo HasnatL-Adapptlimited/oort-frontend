@@ -5,11 +5,16 @@ import { AddPageComponent } from './add-page.component';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import {
   SafeContentChoiceModule,
-  SafeFormsDropdownModule,
+  SafeWidgetChoiceModule,
 } from '@oort-front/safe';
 import { TranslateModule } from '@ngx-translate/core';
 import { AbilityModule } from '@casl/angular';
-import { DividerModule, ButtonModule } from '@oort-front/ui';
+import {
+  DividerModule,
+  ButtonModule,
+  GraphQLSelectModule,
+  FormWrapperModule,
+} from '@oort-front/ui';
 
 /**
  * Add page module.
@@ -23,10 +28,12 @@ import { DividerModule, ButtonModule } from '@oort-front/ui';
     AddPageRoutingModule,
     SafeContentChoiceModule,
     TranslateModule,
-    SafeFormsDropdownModule,
     DividerModule,
     AbilityModule,
     ButtonModule,
+    SafeWidgetChoiceModule,
+    GraphQLSelectModule,
+    FormWrapperModule,
   ],
 })
 export class AddPageModule {}

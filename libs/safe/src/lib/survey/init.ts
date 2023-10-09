@@ -12,11 +12,13 @@ import * as ResourceComponent from './components/resource';
 import * as ResourcesComponent from './components/resources';
 import * as OwnerComponent from './components/owner';
 import * as UsersComponent from './components/users';
+import * as GeospatialComponent from './components/geospatial';
 import * as TextWidget from './widgets/text-widget';
 import * as CommentWidget from './widgets/comment-widget';
 import * as DropdownWidget from './widgets/dropdown-widget';
 import * as TagboxWidget from './widgets/tagbox-widget';
 import * as OtherProperties from './global-properties/others';
+// import * as ChoicesByUrlProperties from './global-properties/choicesByUrl';
 import * as ReferenceDataProperties from './global-properties/reference-data';
 import * as TooltipProperty from './global-properties/tooltip';
 import { initLocalization } from './localization';
@@ -30,7 +32,7 @@ import { NgZone } from '@angular/core';
  * @param domService Shared DOM service, used to inject components on the go
  * @param dialog dialog service
  * @param apollo apollo service
- * @param formBuilder form builder service
+ * @param fb form builder service
  * @param authService custom auth service
  * @param environment injected environment
  * @param referenceDataService Reference data service
@@ -42,7 +44,7 @@ export const initCustomSurvey = (
   domService: DomService,
   dialog: Dialog,
   apollo: Apollo,
-  formBuilder: UntypedFormBuilder,
+  fb: UntypedFormBuilder,
   authService: SafeAuthService,
   environment: any,
   referenceDataService: SafeReferenceDataService,
@@ -62,30 +64,22 @@ export const initCustomSurvey = (
   if (containsCustomQuestions) {
     CommentWidget.init(Survey);
     // load components (same as widgets, but with less configuration options)
-    ResourceComponent.init(
-      Survey,
-      domService,
-      apollo,
-      dialog,
-      formBuilder,
-      ngZone
-    );
-    ResourcesComponent.init(
-      Survey,
-      domService,
-      apollo,
-      dialog,
-      formBuilder,
-      ngZone
-    );
+    ResourceComponent.init(Survey, domService, apollo, dialog, fb, ngZone);
+    ResourcesComponent.init(Survey, domService, apollo, dialog, fb, ngZone);
     OwnerComponent.init(Survey, domService, apollo);
     UsersComponent.init(Survey, domService, apollo);
+    GeospatialComponent.init(Survey, domService);
   }
 
   // load global properties
   ReferenceDataProperties.init(Survey, domService, referenceDataService);
   TooltipProperty.init(Survey);
   OtherProperties.init(Survey, environment);
+
+  // enables POST requests for choicesByUrl
+  // todo: enable
+  // ChoicesByUrlProperties.init(Survey);
+
   // set localization
   initLocalization(Survey);
   // load internal functions

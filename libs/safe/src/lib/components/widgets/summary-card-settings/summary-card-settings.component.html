@@ -67,6 +67,18 @@
         <safe-display-tab [form]="tileForm"></safe-display-tab>
       </ng-template>
     </ui-tab>
+    <!-- Context filter settings -->
+    <ui-tab>
+      <ng-container ngProjectAs="label">
+        <ui-icon icon="filter_list" [size]="24"></ui-icon>
+        <span>{{ 'models.dashboard.dashboardFilter' | translate }}</span>
+      </ng-container>
+      <ng-template uiTabContent>
+        <safe-contextual-filters-settings
+          [form]="tileForm"
+        ></safe-contextual-filters-settings>
+      </ng-template>
+    </ui-tab>
     <!-- Widget display options -->
     <ui-tab>
       <ng-container ngProjectAs="label">
@@ -119,6 +131,23 @@
             </div>
           </div>
         </safe-display-settings>
+      </ng-template>
+    </ui-tab>
+    <ui-tab>
+      <ng-container ngProjectAs="label">
+        <ui-icon
+          icon="filter_alt"
+          [size]="24"
+          [uiTooltip]="'models.widget.sorting.title' | translate"
+        ></ui-icon>
+        <span>{{ 'models.widget.sorting.title' | translate }}</span>
+      </ng-container>
+      <ng-template uiTabContent>
+        <safe-sorting-settings
+          [fields]="selectedResource?.metadata"
+          [formArray]="$any(tileForm.get('sortFields'))"
+          [formGroup]="tileForm"
+        ></safe-sorting-settings>
       </ng-template>
     </ui-tab>
   </ui-tabs>

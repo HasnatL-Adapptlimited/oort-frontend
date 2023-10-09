@@ -7,15 +7,58 @@ import {
 import * as SurveyCreator from 'survey-creator';
 import { resourceConditions } from './resources';
 import { Dialog } from '@angular/cdk/dialog';
-import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
+import {
+  FormControl,
+  UntypedFormBuilder,
+  UntypedFormGroup,
+} from '@angular/forms';
 import { SafeResourceDropdownComponent } from '../../components/resource-dropdown/resource-dropdown.component';
 import { DomService } from '../../services/dom/dom.service';
-import { buildSearchButton, buildAddButton } from './utils';
+import {
+  buildSearchButton,
+  buildAddButton,
+  processNewCreatedRecords,
+} from './utils';
 import get from 'lodash/get';
 import { Question, QuestionResource } from '../types';
 import { JsonMetadata, SurveyModel } from 'survey-angular';
+import { Record } from '../../models/record.model';
+import { SafeTestServiceDropdownComponent } from '../../components/test-service-dropdown/test-service-dropdown.component';
 import { NgZone } from '@angular/core';
 
+/** Question's temporary records */
+export const temporaryRecordsForm = new FormControl([]);
+
+/** Cache for loaded records */
+const loadedRecords: Map<string, Record> = new Map();
+
+/**
+ * Adds the selected record to the survey context.
+ *
+ * @param question resource question
+ * @param recordID id of record to add context of
+ */
+const addRecordToSurveyContext = (question: Question, recordID: string) => {
+  const survey = question.survey as SurveyModel;
+  if (!recordID) {
+    // get survey variables
+    survey.getVariableNames().forEach((variable) => {
+      // remove variable if starts with question name
+      if (variable.startsWith(`${question.name}.`))
+        survey.setVariable(variable, null);
+    });
+    return;
+  }
+  // get record from cache
+  const record = loadedRecords.get(recordID);
+  if (!record) return;
+
+  const data = record?.data || {};
+  for (const field in data) {
+    // create survey expression in the format {[questionName].[fieldName]} = [value]
+    survey.setVariable(`${question.name}.${field}`, data[field]);
+  }
+};
 /**
  * Inits the resource question component of for survey.
  *
@@ -23,7 +66,7 @@ import { NgZone } from '@angular/core';
  * @param domService Shared DOM service
  * @param apollo Apollo client
  * @param dialog Dialog
- * @param formBuilder Angular form service
+ * @param fb Angular form service
  * @param ngZone Angular Service to execute code inside Angular environment
  */
 export const init = (
@@ -31,7 +74,7 @@ export const init = (
   domService: DomService,
   apollo: Apollo,
   dialog: Dialog,
-  formBuilder: UntypedFormBuilder,
+  fb: UntypedFormBuilder,
   ngZone: NgZone
 ): void => {
   const getResourceById = (data: { id: string }) =>
@@ -45,6 +88,7 @@ export const init = (
   const mapQuestionChoices = (data: any, question: any) => {
     return (
       data.resource.records?.edges?.map((x: any) => {
+        loadedRecords.set(x.node?.id || '', x.node);
         return {
           value: x.node?.id,
           text: x.node?.data[question.displayField || 'id'],
@@ -228,19 +272,46 @@ export const init = (
         required: true,
         visibleIf: (obj: null | QuestionResource) =>
           !!obj && !!obj.resource && !!obj.displayField,
+        type: 'resourceTestService',
         visibleIndex: 3,
-        choices: (obj: QuestionResource, choicesCallback: any) => {
-          if (obj.resource) {
-            getResourceRecordsById({ id: obj.resource }).subscribe(
-              ({ data }) => {
-                const choices = mapQuestionChoices(data, obj);
-                choices.unshift({ value: null });
-                choicesCallback(choices);
-              }
-            );
-          }
-        },
       });
+
+      const testServiceEditor = {
+        render: (editor: any, htmlElement: HTMLElement) => {
+          const question = editor.object;
+          let dropdownDiv: HTMLDivElement | null = null;
+          const updateDropdownInstance = () => {
+            if (question.displayField) {
+              if (dropdownDiv) {
+                dropdownDiv.remove();
+              }
+              dropdownDiv = document.createElement('div');
+              const instance = createTestServiceInstance(dropdownDiv);
+              if (instance) {
+                instance.resource = question.resource;
+                instance.record = question['test service'];
+                instance.textField = question.displayField;
+                instance.choice.subscribe((res: any) => editor.onChanged(res));
+              }
+              htmlElement.appendChild(dropdownDiv);
+            }
+          };
+          question.registerFunctionOnPropertyValueChanged(
+            'displayField',
+            updateDropdownInstance,
+            // eslint-disable-next-line no-underscore-dangle
+            editor.property_.name // a unique key to distinguish multiple
+          );
+
+          updateDropdownInstance();
+        },
+      };
+
+      SurveyCreator.SurveyPropertyEditorFactory.registerCustomEditor(
+        'resourceTestService',
+        testServiceEditor
+      );
+
       serializer.addProperty('resource', {
         name: 'addRecord:boolean',
         category: 'Custom Questions',
@@ -541,6 +612,20 @@ export const init = (
             this.populateChoices(question);
           }
         }
+        if (question.addRecord && question.canSearch) {
+          // If search button exists, updates grid displayed records when new records are created with the add button
+          question.registerFunctionOnPropertyValueChanged(
+            'newCreatedRecords',
+            async () => {
+              const settings = await processNewCreatedRecords(
+                question,
+                false,
+                []
+              );
+              temporaryRecordsForm.setValue(settings.query.temporaryRecords);
+            }
+          );
+        }
       }
     },
     /**
@@ -569,6 +654,7 @@ export const init = (
               question.contentQuestion.optionsCaption =
                 'Select a record from ' + data.resource.name + '...';
             }
+            addRecordToSurveyContext(question, question.value);
           }
         );
       } else {
@@ -599,7 +685,8 @@ export const init = (
           question,
           question.gridFieldsSettings,
           false,
-          dialog
+          dialog,
+          temporaryRecordsForm
         );
         actionsButtons.appendChild(searchBtn);
 
@@ -632,6 +719,13 @@ export const init = (
               ? ''
               : 'none';
         });
+
+        const survey: SurveyModel = question.survey as SurveyModel;
+
+        // Listen to value changes
+        survey.onValueChanged.add((_, options) => {
+          addRecordToSurveyContext(options.question, options.value);
+        });
       }
     },
     convertFromRawToFormGroup: (
@@ -640,7 +734,7 @@ export const init = (
       if (!gridSettingsRaw.fields) {
         return null;
       }
-      const auxForm = formBuilder.group(gridSettingsRaw);
+      const auxForm = fb.group(gridSettingsRaw);
       auxForm.controls.fields.setValue(gridSettingsRaw.fields);
       return auxForm;
     },
@@ -662,5 +756,22 @@ export const init = (
         }
       });
     }
+  };
+
+  /**
+   * Creates the SafeTestServiceDropdownComponent instance for the test service property
+   *
+   * @param htmlElement - The element that the directive is attached to.
+   * @returns The SafeTestServiceDropdownComponent instance
+   */
+  const createTestServiceInstance = (
+    htmlElement: any
+  ): SafeTestServiceDropdownComponent => {
+    const dropdown = domService.appendComponentToBody(
+      SafeTestServiceDropdownComponent,
+      htmlElement
+    );
+    const instance: SafeTestServiceDropdownComponent = dropdown.instance;
+    return instance;
   };
 };

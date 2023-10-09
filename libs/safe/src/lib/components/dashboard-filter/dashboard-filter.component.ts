@@ -1,5 +1,6 @@
 import {
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   HostListener,
@@ -57,12 +58,21 @@ export class DashboardFilterComponent
     FilterPosition.RIGHT,
   ] as const;
   public isDrawerOpen = false;
+  /** Either left, right, top or bottom */
   public filterPosition = FilterPosition;
+  /** computed width of the parent container (or the window size if fullscreen) */
   public containerWidth!: string;
+  /** computed height of the parent container (or the window size if fullscreen) */
   public containerHeight!: string;
+  /** computed left offset of the parent container (or 0 if fullscreen) */
   public containerTopOffset!: string;
+  /** computed top offset of the parent container (or 0 if fullscreen) */
   public containerLeftOffset!: string;
-  private value: any;
+  /** Represents the survey's value */
+  private value: Record<string, any> | undefined;
+
+  /** Resize observer for the sidenav container */
+  private resizeObserver!: ResizeObserver;
 
   // Survey
   public survey: Survey.Model = new Survey.Model();
@@ -90,6 +100,7 @@ export class DashboardFilterComponent
    * @param contextService Context service
    * @param ngZone Triggers html changes
    * @param referenceDataService Reference data service
+   * @param changeDetectorRef Change detector reference
    * @param _host sidenav container host
    */
   constructor(
@@ -101,12 +112,20 @@ export class DashboardFilterComponent
     private contextService: ContextService,
     private ngZone: NgZone,
     private referenceDataService: SafeReferenceDataService,
+    private changeDetectorRef: ChangeDetectorRef,
     @Optional() private _host: SidenavContainerComponent
   ) {
     super();
   }
 
   ngAfterViewInit(): void {
+    if (this._host) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.setFilterContainerDimensions();
+      });
+      this.resizeObserver.observe(this._host.contentContainer.nativeElement);
+    }
+
     this.contextService.filter$
       .pipe(takeUntil(this.destroy$))
       .subscribe((value) => {
@@ -127,7 +146,7 @@ export class DashboardFilterComponent
       });
     this.contextService.filterPosition$
       .pipe(takeUntil(this.destroy$))
-      .subscribe((value) => {
+      .subscribe((value: FilterPosition | undefined) => {
         if (value) {
           this.position = value as FilterPosition;
         } else {
@@ -141,6 +160,11 @@ export class DashboardFilterComponent
     if (changes.isFullScreen) {
       this.setFilterContainerDimensions();
     }
+  }
+
+  override ngOnDestroy(): void {
+    super.ngOnDestroy();
+    this.resizeObserver.disconnect();
   }
 
   // add ngOnChanges there
@@ -234,8 +258,11 @@ export class DashboardFilterComponent
     if (this.value) {
       this.survey.data = this.value;
     }
-    this.survey.showCompletedPage = false;
-    this.survey.showNavigationButtons = false;
+
+    this.setAvailableFiltersForContext();
+
+    this.survey.showCompletedPage = false; // Hide completed page from the survey
+    this.survey.showNavigationButtons = false; // Hide navigation buttons from the survey
 
     this.survey.onValueChanged.add(this.onValueChange.bind(this));
     this.survey.onAfterRenderSurvey.add(this.onAfterRenderSurvey.bind(this));
@@ -249,12 +276,24 @@ export class DashboardFilterComponent
   }
 
   /**
+   * Set the available filters of dashboard filter in the shared context service
+   */
+  private setAvailableFiltersForContext() {
+    this.contextService.availableFilterFields = this.survey.getAllQuestions()
+      .length
+      ? this.survey
+          .getAllQuestions()
+          .map((question) => ({ name: question.title, value: question.name }))
+      : [];
+  }
+
+  /**
    * Subscribe to survey render to see if survey is empty or not.
    *
    * @param survey survey model
    */
   public onAfterRenderSurvey(survey: Survey.SurveyModel) {
-    this.empty = !(survey.getAllQuestions().length > 0);
+    this.empty = survey.getAllQuestions().length === 0;
   }
 
   /**
@@ -314,17 +353,49 @@ export class DashboardFilterComponent
   }
 
   /**
+   * Get survey values whether are primitives or not,
+   * if there are not primitives, we have to map them one level from the value property in order to make the filters in the context service work
+   *
+   * @returns mapped survey filter values
+   */
+  private getSurveyValues() {
+    return Object.keys(this.survey.data).reduce((acc, currentKey) => {
+      acc = {
+        ...acc,
+        [currentKey]:
+          this.survey.data[currentKey as any].value ??
+          this.survey.data[currentKey as any],
+      };
+      return acc;
+    }, {});
+  }
+
+  /**
    * Updates the filter in the context service with the latest survey data
    * when a value changes.
    */
   private onValueChange() {
-    const surveyData = this.survey.data;
+    const surveyData = this.getSurveyValues();
+    // Get the plain data of the form in order to handle it easier
     const displayValues = this.survey.getPlainData();
+    /* Get the isPrimitiveValue property of the questions involved in the filter 
+    with the question name as key to set the correct label in the dashboard selection
+    */
+    const isValuePrimitiveKeys = this.survey
+      .getAllQuestions()
+      .reduce(function (acc, question) {
+        acc = {
+          ...acc,
+          [question.name]: question.isPrimitiveValue,
+        };
+        return acc;
+      }, {});
+
     this.contextService.filter.next(surveyData);
     this.ngZone.run(() => {
       this.quickFilters = displayValues
         .filter((question) => !!question.value)
-        .map((question: any) => {
+        .map((question) => {
           let mappedQuestion;
           if (question.value instanceof Array && question.value.length > 2) {
             mappedQuestion = {
@@ -333,7 +404,13 @@ export class DashboardFilterComponent
             };
           } else {
             mappedQuestion = {
-              label: question.displayValue,
+              // If the value used is not primitive, use the text label to display selection in the filter
+              label: !isValuePrimitiveKeys[
+                question.name as keyof typeof isValuePrimitiveKeys
+              ]
+                ? question.displayValue.text
+                : // else for primitive values, the selected display value
+                  question.displayValue,
             };
           }
           return mappedQuestion;
@@ -374,5 +451,7 @@ export class DashboardFilterComponent
         }
       }
     }
+    // force change detection
+    this.changeDetectorRef.detectChanges();
   }
 }

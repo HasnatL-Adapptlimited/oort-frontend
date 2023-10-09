@@ -26,7 +26,10 @@ export const environment: Environment = {
   backOfficeUri: 'https://ems-safe-dev.who.int/backoffice/',
   availableLanguages: ['en'],
   authConfig,
-  esriApiKey:
-    'AAPKf2bae9b3f32943e2a8d58b0b96ffea3fj8Vt8JYDt1omhzN_lONXPRHN8B89umU-pA9t7ze1rfCIiiEVXizYEiFRFiVrl6wg',
   theme,
+  sentry: {
+    environment: 'development',
+    dns: 'https://37ca208310369a4cee685fd50e1105ad@o4504696331632640.ingest.sentry.io/4505997745782784',
+    tracePropagationTargets: ['ems-safe-dev.who.int'],
+  },
 };

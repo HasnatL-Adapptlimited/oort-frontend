@@ -20,8 +20,18 @@ export interface GetResourceQueryResponse {
 // === GET RESOURCES ===
 /** Graphql request for getting resources */
 export const GET_RESOURCES = gql`
-  query GetResources($first: Int, $afterCursor: ID, $sortField: String) {
-    resources(first: $first, afterCursor: $afterCursor, sortField: $sortField) {
+  query GetResources(
+    $first: Int
+    $afterCursor: ID
+    $sortField: String
+    $filter: JSON
+  ) {
+    resources(
+      first: $first
+      afterCursor: $afterCursor
+      sortField: $sortField
+      filter: $filter
+    ) {
       edges {
         node {
           id
@@ -47,7 +57,12 @@ export interface GetResourcesQueryResponse {
 /** Get list of ref data gql query definition */
 export const GET_REFERENCE_DATAS = gql`
   query GetReferenceDatas($first: Int, $afterCursor: ID) {
-    referenceDatas(first: $first, afterCursor: $afterCursor) {
+    referenceDatas(
+      first: $first
+      afterCursor: $afterCursor
+      sortField: "name"
+      sortOrder: "asc"
+    ) {
       edges {
         node {
           id

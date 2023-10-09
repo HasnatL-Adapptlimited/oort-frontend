@@ -16,6 +16,7 @@ import { SafeReferenceDataService } from '../../services/reference-data/referenc
 import { Form } from '../../models/form.model';
 import { renderGlobalProperties } from '../../survey/render-global-properties';
 import { SnackbarService } from '@oort-front/ui';
+import { SafeFormHelpersService } from '../../services/form-helper/form-helper.service';
 
 /**
  * Array containing the different types of questions.
@@ -105,12 +106,14 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
    * @param snackBar This is the service that will be used to display the snackbar.
    * @param translate Angular translate service
    * @param referenceDataService Reference data service
+   * @param formHelpersService Shared form helper service.
    */
   constructor(
     public dialog: Dialog,
     private snackBar: SnackbarService,
     private translate: TranslateService,
-    private referenceDataService: SafeReferenceDataService
+    private referenceDataService: SafeReferenceDataService,
+    private formHelpersService: SafeFormHelpersService
   ) {
     // translate the editor in the same language as the interface
     SurveyCreator.localization.currentLocale = this.translate.currentLang;
@@ -132,6 +135,17 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
       }
       // skip if form is core
       if (!this.form.core) {
+        // Typing for survey fields
+        // {
+        //   type: string;
+        //   resource?: string;
+        //   referenceData?: {
+        //     id: string;
+        //     displayField: string;
+        //   };
+        //   name?: string;
+        //   isCore?: boolean;
+        // }
         const coreFields =
           this.form.fields?.filter((x) => x.isCore).map((x) => x.name) || [];
         // Highlight core fields
@@ -151,7 +165,7 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.surveyCreator.survey.dispose();
+    this.surveyCreator.survey?.dispose();
   }
 
   /**
@@ -162,7 +176,7 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
   private setFormBuilder(structure: string) {
     const creatorOptions = {
       showEmbededSurveyTab: false,
-      showJSONEditorTab: false,
+      showJSONEditorTab: true,
       generateValidJSON: true,
       showTranslationTab: true,
       questionTypes: QUESTION_TYPES,
@@ -173,6 +187,12 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
     this.surveyCreator = new SurveyCreator.SurveyCreator(
       'surveyCreatorContainer',
       creatorOptions
+    );
+    (this.surveyCreator.onTestSurveyCreated as any).add(
+      (_: any, options: any) => {
+        const survey: Survey.SurveyModel = options.survey;
+        this.formHelpersService.addUserVariables(survey);
+      }
     );
     this.surveyCreator.haveCommercialLicense = true;
     this.surveyCreator.text = structure;
@@ -193,15 +213,17 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
     );
 
     // Notify parent that form structure has changed
-    (this.surveyCreator.onModified as any).add((survey: any) => {
-      this.formChange.emit(survey.text);
-    });
+    (this.surveyCreator.onModified as any).add(
+      (survey: SurveyCreator.SurveyCreator) => {
+        this.formChange.emit(survey.text);
+      }
+    );
     this.surveyCreator.survey.onUpdateQuestionCssClasses.add(
       (survey: Survey.SurveyModel, options: any) => this.onSetCustomCss(options)
     );
     (this.surveyCreator.onTestSurveyCreated as any).add(
-      (sender: any, opt: any) => {
-        opt.survey.onUpdateQuestionCssClasses.add((_: any, opt2: any) =>
+      (sender: any, options: any) => {
+        options.survey.onUpdateQuestionCssClasses.add((_: any, opt2: any) =>
           this.onSetCustomCss(opt2)
         );
       }
@@ -214,37 +236,37 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
         this.form.fields?.filter((x) => x.isCore).map((x) => x.name) || [];
       // Remove core fields adorners
       (this.surveyCreator.onElementAllowOperations as any).add(
-        (sender: any, opt: any) => {
-          const obj = opt.obj;
+        (sender: any, options: any) => {
+          const obj = options.obj;
           if (!obj || !obj.page) {
             return;
           }
           // If it is a core field
           if (coreFields.includes(obj.valueName)) {
             // Disable deleting, editing, changing type and changing if required or not
-            opt.allowDelete = false;
-            opt.allowChangeType = false;
-            opt.allowChangeRequired = false;
-            opt.allowAddToToolbox = false;
-            opt.allowCopy = false;
-            opt.allowShowEditor = false;
-            opt.allowShowHideTitle = false;
-            opt.allowDragging = true;
+            options.allowDelete = false;
+            options.allowChangeType = false;
+            options.allowChangeRequired = false;
+            options.allowAddToToolbox = false;
+            options.allowCopy = false;
+            options.allowShowEditor = false;
+            options.allowShowHideTitle = false;
+            options.allowDragging = true;
           }
         }
       );
       // Block core fields edition
-      this.surveyCreator.onShowingProperty.add((sender: any, opt: any) => {
-        const obj = opt.obj;
+      this.surveyCreator.onShowingProperty.add((sender: any, options: any) => {
+        const obj = options.obj;
         if (!obj || !obj.page) {
           return;
         }
         // If it is a core field
         if (
           coreFields.includes(obj.valueName) &&
-          !CORE_QUESTION_ALLOWED_PROPERTIES.includes(opt.property.name)
+          !CORE_QUESTION_ALLOWED_PROPERTIES.includes(options.property.name)
         ) {
-          opt.canShow = false;
+          options.canShow = false;
         }
       });
       // Highlight core fields
@@ -252,22 +274,24 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     // Scroll to question when added
-    (this.surveyCreator.onQuestionAdded as any).add((sender: any, opt: any) => {
-      const name = opt.question.name;
-      setTimeout(() => {
-        const el = document.querySelector('[data-name="' + name + '"]');
-        el?.scrollIntoView({ behavior: 'smooth' });
-        this.surveyCreator.showQuestionEditor(opt.question);
-      });
-    });
+    (this.surveyCreator.onQuestionAdded as any).add(
+      (sender: any, options: any) => {
+        const name = options.question.name;
+        setTimeout(() => {
+          const el = document.querySelector('[data-name="' + name + '"]');
+          el?.scrollIntoView({ behavior: 'smooth' });
+          this.surveyCreator.showQuestionEditor(options.question);
+        });
+      }
+    );
 
     // add the rendering of custom properties
     this.surveyCreator.survey.onAfterRenderQuestion.add(
       renderGlobalProperties(this.referenceDataService)
     );
     (this.surveyCreator.onTestSurveyCreated as any).add(
-      (sender: any, opt: any) =>
-        opt.survey.onAfterRenderQuestion.add(
+      (sender: any, options: any) =>
+        options.survey.onAfterRenderQuestion.add(
           renderGlobalProperties(this.referenceDataService)
         )
     );
@@ -275,7 +299,7 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
 
     // add move up/down buttons
     this.surveyCreator.onDefineElementMenuItems.add(
-      (sender: any, options: any) => {
+      (sender: SurveyCreator.SurveyCreator, options: any) => {
         const moveUpButton = {
           name: 'move-up',
           text: this.translate.instant('pages.formBuilder.move.up'),
@@ -374,41 +398,59 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
    */
   saveMySurvey = () => {
     this.validateValueNames()
-      .then(() => {
-        this.save.emit(this.surveyCreator.text);
+      .then((canCreate: boolean) => {
+        if (canCreate) {
+          this.save.emit(this.surveyCreator.text);
+        }
       })
       .catch((error) => {
-        this.snackBar.openSnackBar(error.message, { error: true });
+        this.snackBar.openSnackBar(error.message, {
+          error: true,
+          duration: 15000,
+        });
       });
   };
 
   /**
    * Makes sure that value names are existent and snake case, to not cause backend problems.
+   *
+   * @returns if the validation is approved and can create the survey
    */
-  private async validateValueNames(): Promise<void> {
+  private async validateValueNames(): Promise<boolean> {
     this.relatedNames = [];
     const survey = new Survey.SurveyModel(this.surveyCreator.JSON);
-    survey.pages.forEach((page: Survey.PageModel) => {
-      page.questions.forEach((question: Survey.Question) =>
-        this.setQuestionNames(question, page)
+    const canCreate = survey.pages.every((page: Survey.PageModel) => {
+      const verifiedQuestions = page.questions.every(
+        (question: Survey.Question) => this.setQuestionNames(question, page)
       );
-      // Search for duplicated value names
-      const duplicatedFields = difference(
-        page.questions,
-        uniqBy(page.questions, 'valueName')
-      );
-      if (duplicatedFields.length > 0) {
-        throw new Error(
-          this.translate.instant(
-            'pages.formBuilder.errors.dataFieldDuplicated',
-            {
-              name: duplicatedFields[0].valueName,
-            }
-          )
+      if (verifiedQuestions) {
+        // If questions verified, search for duplicated value names
+        const duplicatedFields = difference(
+          page.questions,
+          uniqBy(page.questions, 'valueName')
         );
+        if (duplicatedFields.length > 0) {
+          this.snackBar.openSnackBar(
+            this.translate.instant(
+              'pages.formBuilder.errors.dataFieldDuplicated',
+              {
+                name: duplicatedFields[0].valueName,
+              }
+            ),
+            {
+              error: true,
+              duration: 15000,
+            }
+          );
+          return false;
+        }
+      } else {
+        return false;
       }
+      return true;
     });
     this.surveyCreator.JSON = survey.toJSON();
+    return canCreate;
   }
 
   /**
@@ -436,15 +478,17 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   /**
-   * Recursively set the question names of the form.
+   * Recursively set the question names of the form and depending on
+   * the question type, check additional required fields.
    *
    * @param question The question of the form whose name we need to set
    * @param page The page of the form
+   * @returns if question name and additional required fields are valid
    */
   private setQuestionNames(
     question: Survey.Question,
     page: Survey.PageModel
-  ): void {
+  ): boolean {
     // create the valueName of the element in snake case
     if (!question.valueName) {
       if (question.title) {
@@ -452,20 +496,30 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
       } else if (question.name) {
         question.valueName = this.toSnakeCase(question.name);
       } else {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant('pages.formBuilder.errors.missingName', {
             page: page.name,
-          })
+          }),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
     } else {
       if (!this.isSnakeCase(question.valueName)) {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant('pages.formBuilder.errors.snakecase', {
             name: question.valueName,
             page: page.name,
-          })
+          }),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
     }
     // if choices object exists, checks for duplicate values
@@ -478,14 +532,19 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
         const distinctValues = [...new Set(values)];
 
         if (values.length > distinctValues.length) {
-          throw new Error(
+          this.snackBar.openSnackBar(
             this.translate.instant(
               'pages.formBuilder.errors.choices.valueDuplicated',
               {
                 question: question.valueName,
               }
-            )
+            ),
+            {
+              error: true,
+              duration: 15000,
+            }
           );
+          return false;
         }
       } else {
         // As we already have the reference data value to get the choices, we dont want to save them again with the form structure
@@ -493,19 +552,31 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
     if (question.getType() === 'multipletext') {
-      question.items.forEach((item: any) => {
+      let validQuestion = true;
+      // Check if every item of the questions is valid, otherwise stop loop and function
+      question.items.every((item: any) => {
         if (!item.name && !item.title) {
-          throw new Error(
+          this.snackBar.openSnackBar(
             this.translate.instant(
               'pages.formBuilder.errors.multipletext.missingName',
               {
                 question: question.valueName,
               }
-            )
+            ),
+            {
+              error: true,
+              duration: 15000,
+            }
           );
+          validQuestion = false;
+          return false;
         }
         item.name = this.toSnakeCase(item.name);
+        return true;
       });
+      if (!validQuestion) {
+        return false;
+      }
     }
     if (question.getType() === 'matrix') {
       question.columns.forEach(
@@ -528,66 +599,91 @@ export class SafeFormBuilderComponent implements OnInit, OnChanges, OnDestroy {
       if (question.relatedName) {
         question.relatedName = this.toSnakeCase(question.relatedName);
         if (this.relatedNames.includes(question.relatedName)) {
-          throw new Error(
+          this.snackBar.openSnackBar(
             this.translate.instant(
               'components.formBuilder.errors.duplicatedRelatedName',
               {
                 question: question.name,
                 page: page.name,
               }
-            )
+            ),
+            {
+              error: true,
+              duration: 15000,
+            }
           );
+          return false;
         } else {
           this.relatedNames.push(question.relatedName);
         }
       } else {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant(
             'components.formBuilder.errors.missingRelatedName',
             {
               question: question.name,
               page: page.name,
             }
-          )
+          ),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
-
       if (question.addRecord && !question.addTemplate) {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant(
             'components.formBuilder.errors.missingTemplate',
             {
               question: question.name,
               page: page.name,
             }
-          )
+          ),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
 
       // Error if the user selected Display As Grid without adding an available field.
       if (question.displayAsGrid && !question.gridFieldsSettings) {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant(
             'components.formBuilder.errors.missingGridField',
             {
               question: question.name,
               page: page.name,
             }
-          )
+          ),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
     }
     // Check that at least an application is selected in the properties of users and owner question
     if (['users', 'owner'].includes(question.getType())) {
       if (!question.applications) {
-        throw new Error(
+        this.snackBar.openSnackBar(
           this.translate.instant('pages.formBuilder.errors.selectApplication', {
             question: question.name,
             page: page.name,
-          })
+          }),
+          {
+            error: true,
+            duration: 15000,
+          }
         );
+        return false;
       }
     }
+    return true;
   }
 
   /**

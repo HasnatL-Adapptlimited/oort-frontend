@@ -32,9 +32,14 @@ import { SafeUnsubscribeModule } from './components/utils/unsubscribe/unsubscrib
 import { SafeViewsModule } from './views/views.module';
 import { SafeEditableTextModule } from './components/editable-text/editable-text.module';
 import { CronExpressionControlModule } from './components/cron-expression-control/cron-expression-control.module';
+import { MapModule } from './components/ui/map';
 import { FullScreenModule } from './directives/fullscreen/fullscreen.module';
 import { DashboardFilterModule } from './components/dashboard-filter/dashboard-filter.module';
+import { ButtonActionModule } from './components/button-action/button-action.module';
 import { GraphQLSelectModule } from '@oort-front/ui';
+import { SafeSortingSettingsModule } from './components/widgets/common/sorting-settings/sorting-settings.module';
+import { SafeWidgetChoiceModule } from './components/widget-choice/widget-choice.module';
+import { TabsSettingsModule } from './components/widgets/tabs-settings/tabs-settings.module';
 
 /** Main module for the safe project */
 @NgModule({
@@ -48,6 +53,7 @@ import { GraphQLSelectModule } from '@oort-front/ui';
     SafeGridSettingsModule,
     SafeMapSettingsModule,
     SafeWidgetGridModule,
+    SafeSortingSettingsModule,
     SafeUsersModule,
     SafeRolesModule,
     SafeRecordHistoryModule,
@@ -62,7 +68,11 @@ import { GraphQLSelectModule } from '@oort-front/ui';
     SafeUserSummaryModule,
     SafeEditableTextModule,
     CronExpressionControlModule,
+    MapModule,
     DashboardFilterModule,
+    ButtonActionModule,
+    SafeWidgetChoiceModule,
+    TabsSettingsModule,
     // === Pipes ===
     SafeDateModule,
     SafeReadableCronModule,

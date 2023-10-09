@@ -20,6 +20,7 @@ import { FormControlName, Validators, FormControlStatus } from '@angular/forms';
 import { ChipListDirective } from '../chip/chip-list.directive';
 import { DateWrapperDirective } from '../date/date-wrapper.directive';
 import { AutocompleteComponent } from '../autocomplete/autocomplete.component';
+import { FormControlComponent } from './form-control/form-control.component';
 
 /**
  * UI Form Wrapper Directive
@@ -34,7 +35,10 @@ export class FormWrapperDirective
    * Will the form field be wrapped ?
    */
   @Input() outline = false;
-
+  /**
+   * Set default margin for separation in the current form field
+   */
+  @Input() defaultMargin = true;
   // === GET THE ELEMENTS ON WHICH SUFFIX/PREFIX ARE APPLIED ===
   @ContentChildren(SuffixDirective)
   private allSuffixDirectives: QueryList<SuffixDirective> = new QueryList();
@@ -53,6 +57,8 @@ export class FormWrapperDirective
   private chipListElement!: ElementRef;
   @ContentChild(DateWrapperDirective, { read: ElementRef })
   private dateWrapperElement!: ElementRef;
+  @ContentChild(FormControlComponent, { read: ElementRef })
+  private formControlElement!: ElementRef;
 
   @ContentChild(FormControlName) control!: FormControlName;
 
@@ -111,7 +117,7 @@ export class FormWrapperDirective
     'bg-gray-50',
   ] as const;
 
-  private beyondLabelGeneral = ['relative', 'py-1.5', 'px-2'] as const;
+  private beyondLabelGeneral = ['relative', 'flex', 'py-1.5', 'px-2'] as const;
   private beyondLabelNoChipList = ['flex', 'items-center', 'w-full'] as const;
   private beyondLabelNoOutline = [
     'focus-within:ring-2',
@@ -164,12 +170,13 @@ export class FormWrapperDirective
    * @param renderer renderer
    * @param elementRef references to the element on which the directive is applied
    */
-  constructor(private renderer: Renderer2, private elementRef: ElementRef) {
-    this.renderer.addClass(this.elementRef.nativeElement, 'mb-4');
-  }
+  constructor(private renderer: Renderer2, private elementRef: ElementRef) {}
 
   //We need to use afterViewInit for select menu, otherwise removing class does not work
   ngAfterViewInit() {
+    if (this.defaultMargin) {
+      this.renderer.addClass(this.elementRef.nativeElement, 'mb-4');
+    }
     // Do the same with selectMenu
     if (this.currentSelectElement || this.currentGraphQLSelectComponent) {
       if (this.currentGraphQLSelectComponent) {
@@ -319,8 +326,17 @@ export class FormWrapperDirective
       );
       this.renderer.removeClass(this.beyondLabelContainer, 'flex');
     } else {
-      for (const cl of this.beyondLabelNoChipList) {
-        this.renderer.addClass(this.beyondLabelContainer, cl);
+      if (this.formControlElement) {
+        this.renderer.insertBefore(
+          this.beyondLabelContainer,
+          this.formControlElement.nativeElement,
+          this.currentInputElement
+        );
+        // this.renderer.removeClass(this.beyondLabelContainer, 'flex');
+      } else {
+        for (const cl of this.beyondLabelNoChipList) {
+          this.renderer.addClass(this.beyondLabelContainer, cl);
+        }
       }
     }
 

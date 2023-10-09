@@ -1,18 +1,6 @@
-import {
-  Component,
-  ElementRef,
-  Inject,
-  OnInit,
-  ViewChild,
-} from '@angular/core';
-import {
-  UntypedFormBuilder,
-  UntypedFormGroup,
-  Validators,
-} from '@angular/forms';
-
+import { Component, ElementRef, Inject, ViewChild } from '@angular/core';
+import { FormBuilder, Validators } from '@angular/forms';
 import { DialogRef, DIALOG_DATA } from '@angular/cdk/dialog';
-
 import get from 'lodash/get';
 import { COMMA, ENTER, SPACE, TAB } from '@angular/cdk/keycodes';
 import { CommonModule } from '@angular/common';
@@ -45,7 +33,9 @@ const SEPARATOR_KEYS_CODE = [ENTER, COMMA, TAB, SPACE];
  *
  * @returns A function which returns an object with the separator keys
  */
-export function codesFactory(): () => any {
+export function codesFactory(): () => {
+  separatorKeyCodes: number[];
+} {
   const codes = () => ({ separatorKeyCodes: SEPARATOR_KEYS_CODE });
   return codes;
 }
@@ -70,9 +60,12 @@ export function codesFactory(): () => any {
   templateUrl: './edit-distribution-list-modal.component.html',
   styleUrls: ['./edit-distribution-list-modal.component.scss'],
 })
-export class EditDistributionListModalComponent implements OnInit {
+export class EditDistributionListModalComponent {
   // === REACTIVE FORM ===
-  public form: UntypedFormGroup = new UntypedFormGroup({});
+  public form = this.fb.group({
+    name: [get(this.data, 'name', null), Validators.required],
+    emails: [get(this.data, 'emails', []), Validators.required],
+  });
   readonly separatorKeysCodes: number[] = SEPARATOR_KEYS_CODE;
   errorEmails = new BehaviorSubject<boolean>(false);
   errorEmailMessages = new BehaviorSubject<string>('');
@@ -103,23 +96,15 @@ export class EditDistributionListModalComponent implements OnInit {
   /**
    * Component for edition of distribution list
    *
-   * @param formBuilder Angular form builder service
+   * @param fb Angular form builder service
    * @param dialogRef Dialog ref of the component
    * @param data Data input of the modal
    */
   constructor(
-    private formBuilder: UntypedFormBuilder,
+    private fb: FormBuilder,
     public dialogRef: DialogRef<EditDistributionListModalComponent>,
     @Inject(DIALOG_DATA) public data: DialogData
   ) {}
-
-  /** Build the form. */
-  ngOnInit(): void {
-    this.form = this.formBuilder.group({
-      name: [get(this.data, 'name', null), Validators.required],
-      emails: [get(this.data, 'emails', []), Validators.required],
-    });
-  }
 
   /**
    * Add the inputs emails to the distribution list
@@ -131,7 +116,7 @@ export class EditDistributionListModalComponent implements OnInit {
     // use setTimeout to prevent add input value on focusout
     setTimeout(
       () => {
-        const value =
+        const value: string =
           event.type === 'focusout'
             ? this.emailsInput.nativeElement.value
             : event;

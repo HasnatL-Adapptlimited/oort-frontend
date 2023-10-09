@@ -6,7 +6,13 @@ import {
   OnInit,
   Output,
 } from '@angular/core';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
+import {
+  Validators,
+  FormGroup,
+  FormControl,
+  FormArray,
+  FormBuilder,
+} from '@angular/forms';
 import { Apollo } from 'apollo-angular';
 import { get } from 'lodash';
 import { Aggregation } from '../../../models/aggregation.model';
@@ -18,15 +24,12 @@ import { extendWidgetForm } from '../common/display-settings/extendWidgetForm';
 import { GET_RESOURCE, GetResourceByIdQueryResponse } from './graphql/queries';
 import { takeUntil } from 'rxjs';
 
-/** Define max height of summary card */
-const MAX_ROW_SPAN = 4;
-/** Define max width of summary card */
-const MAX_COL_SPAN = 8;
-
-/** Define default height of summary card */
-const DEFAULT_CARD_HEIGHT = 2;
-/** Define max width of summary card */
-const DEFAULT_CARD_WIDTH = 2;
+// todo: put in common
+/** Default context filter value. */
+const DEFAULT_CONTEXT_FILTER = `{
+  "logic": "and",
+  "filters": []
+}`;
 
 /**
  * Create a card form
@@ -37,14 +40,6 @@ const DEFAULT_CARD_WIDTH = 2;
 const createCardForm = (value?: any) => {
   return new FormGroup({
     title: new FormControl<string>(get(value, 'title', 'New Card')),
-    height: new FormControl<number>(get(value, 'height', DEFAULT_CARD_HEIGHT), [
-      Validators.min(1),
-      Validators.max(MAX_ROW_SPAN),
-    ]),
-    width: new FormControl<number>(get(value, 'width', DEFAULT_CARD_WIDTH), [
-      Validators.min(1),
-      Validators.max(MAX_COL_SPAN),
-    ]),
     resource: new FormControl<string>(get(value, 'resource', null)),
     layout: new FormControl<string>(get(value, 'layout', null)),
     aggregation: new FormControl<string>(get(value, 'aggregation', null)),
@@ -72,6 +67,10 @@ const createSummaryCardForm = (def: any) => {
     id: new FormControl<number>(def.id),
     title: new FormControl<string>(get(settings, 'title', '')),
     card: createCardForm(get(settings, 'card', null)),
+    sortFields: new FormArray([]),
+    contextFilters: new FormControl(
+      get(settings, 'contextFilters', DEFAULT_CONTEXT_FILTER)
+    ),
   });
 
   const isUsingAggregation = !!get(settings, 'card.aggregation', null);
@@ -106,18 +105,18 @@ export class SafeSummaryCardSettingsComponent
   extends SafeUnsubscribeComponent
   implements OnInit, AfterViewInit
 {
-  // === REACTIVE FORM ===
-  tileForm: SummaryCardFormT | undefined;
-
-  // === WIDGET ===
+  /** Widget */
   @Input() tile: any;
-
-  // === EMIT THE CHANGES APPLIED ===
+  /** Emit changes applied to the settings */
   // eslint-disable-next-line @angular-eslint/no-output-native
   @Output() change: EventEmitter<any> = new EventEmitter();
-
+  /** Form */
+  public tileForm: SummaryCardFormT | undefined;
+  /** Current resource */
   public selectedResource: Resource | null = null;
+  /** Current layout */
   public selectedLayout: Layout | null = null;
+  /** Current aggregation */
   public selectedAggregation: Aggregation | null = null;
   public customAggregation: any;
 
@@ -129,10 +128,12 @@ export class SafeSummaryCardSettingsComponent
    *
    * @param apollo Apollo service
    * @param aggregationService Shared aggregation service
+   * @param fb FormBuilder instance
    */
   constructor(
     private apollo: Apollo,
-    private aggregationService: SafeAggregationService
+    private aggregationService: SafeAggregationService,
+    private fb: FormBuilder
   ) {
     super();
   }
@@ -163,7 +164,24 @@ export class SafeSummaryCardSettingsComponent
           searchableControl?.disable();
         } else this.tileForm?.get('widgetDisplay.searchable')?.enable();
       });
+
+    this.initSortFields();
   }
+
+  /**
+   * Adds sortFields to the tileForm
+   */
+  initSortFields(): void {
+    this.tile.settings.sortFields?.forEach((item: any) => {
+      const row = this.fb.group({
+        field: [item.field, Validators.required],
+        order: [item.order, Validators.required],
+        label: [item.label, Validators.required],
+      });
+      (this.tileForm?.get('sortFields') as any).push(row);
+    });
+  }
+
   /** @returns a FormControl for the searchable field */
   get searchableControl(): FormControl {
     return this.tileForm?.get('widgetDisplay.searchable') as any;
@@ -275,6 +293,10 @@ export class SafeSummaryCardSettingsComponent
    * @param resource the modified resource
    */
   handleResourceChange(resource: Resource | null) {
+    // clear sort fields array
+    const sortFields = this.tileForm?.get('sortFields') as FormArray;
+    sortFields.clear();
+
     this.selectedResource = resource;
     this.fields = [];
 

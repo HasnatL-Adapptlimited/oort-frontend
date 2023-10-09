@@ -1,7 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 
 module.exports = {
-  important: true,
   content: [
     './apps/**/src/**/*.{html,ts}',
     './libs/safe/**/*.{html,ts,js,mjs}',
@@ -45,7 +44,7 @@ module.exports = {
       animation: {
         fadeIn: 'fadeIn 0.5s forwards',
         fadeOut: 'fadeOut 0.1s forwards',
-      },
+      }
     },
     fontFamily: {
       'system-ui': ['Roboto', 'Helvetica Neue', 'sans-serif'],

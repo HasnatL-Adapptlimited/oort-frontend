@@ -42,17 +42,21 @@ import { isNil } from 'lodash';
 export class SelectMenuComponent
   implements ControlValueAccessor, AfterContentInit, OnDestroy
 {
-  // Tells if the select menu should allow multi selection
+  /** Tells if the select menu should allow multi selection */
   @Input() multiselect = false;
   // Tells if the select menu should be disabled
   @Input() disabled = false;
-  // Tells if some styles to the current ul element should be applied
+  /** Tells if some styles to the current ul element should be applied */
   @Input() isGraphQlSelect = false;
-  // Default selected value
-  @Input() value?: string | string[];
-  // Any custom template provided for display
+  /** Default selected value */
+  @Input() value?: string | string[] | null;
+  /** Any custom template provided for display */
   @Input()
   customTemplate!: { template: TemplateRef<any>; context: any };
+  /** Add extra classes that will apply to the wrapper element */
+  @Input() extraClasses?: string;
+  /** Default value to be displayed when no option is selected */
+  @Input() placeholder = '';
 
   // Emits when the list is opened
   @Output() opened = new EventEmitter<void>();
@@ -66,19 +70,19 @@ export class SelectMenuComponent
 
   @ViewChild('optionPanel', { static: true }) optionPanel!: TemplateRef<any>;
 
-  // Array to store the values selected
+  /** Array to store the values selected */
   public selectedValues: any[] = [];
-  // True if the box is focused, false otherwise
+  /** True if the box is focused, false otherwise */
   public listBoxFocused = false;
-  // Text to be displayed in the trigger when some selections are made
-  public displayTrigger = '';
+  /** Text to be displayed in the trigger when some selections are made */
+  public displayTrigger = this.placeholder;
 
   private destroy$ = new Subject<void>();
-  private clickOutsideListener!: any;
+  private clickOutsideListener!: () => void;
   private selectClosingActionsSubscription!: Subscription;
   private overlayRef!: OverlayRef;
 
-  //Control access value functions
+  /** Control access value functions */
   onChange!: (value: any) => void;
   onTouch!: () => void;
 
@@ -165,7 +169,7 @@ export class SelectMenuComponent
    *
    * @param value value set from parent form control
    */
-  writeValue(value: string[]): void {
+  writeValue(value: string | string[] | null): void {
     if (value && value instanceof Array) {
       this.selectedValues = [...value];
     } else if (value) {
@@ -179,8 +183,10 @@ export class SelectMenuComponent
    * @param fn
    * event that took place
    */
-  registerOnChange(fn: any) {
-    this.onChange = fn;
+  registerOnChange(fn: (value: any) => void) {
+    if (!this.onChange) {
+      this.onChange = fn;
+    }
   }
 
   /**
@@ -189,8 +195,10 @@ export class SelectMenuComponent
    * @param fn
    * event that took place
    */
-  registerOnTouched(fn: any) {
-    this.onTouch = fn;
+  registerOnTouched(fn: () => void) {
+    if (!this.onTouch) {
+      this.onTouch = fn;
+    }
   }
 
   /**

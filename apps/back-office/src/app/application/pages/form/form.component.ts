@@ -41,20 +41,29 @@ export class FormComponent extends SafeUnsubscribeComponent implements OnInit {
   @ViewChild(SafeFormComponent)
   private formComponent?: SafeFormComponent;
 
-  // === DATA ===
+  /** Loading indicator */
   public loading = true;
+  /** Current form id */
   public id = '';
+  /** Current application id */
   public applicationId = '';
+  /** Current form */
   public form?: Form;
+  /** Is form completed */
   public completed = false;
+  /** Should possibility to add new records be hidden */
   public hideNewRecord = false;
+  /** Query subscription */
   public querySubscription?: Subscription;
-
-  // === TAB NAME EDITION ===
+  /** Can name be edited */
   public canEditName = false;
+  /** Is name form active */
   public formActive = false;
+  /** Application page form is part of ( if any ) */
   public page?: Page;
+  /** Application step form is part of ( if any ) */
   public step?: Step;
+  /** Is form part of workflow step */
   public isStep = false;
 
   /**
@@ -111,7 +120,7 @@ export class FormComponent extends SafeUnsubscribeComponent implements OnInit {
           )
           .subscribe(({ data, loading }) => {
             this.form = data.form;
-            this.canEditName = this.step?.canUpdate || false;
+            this.canEditName = this.page?.canUpdate || false;
             this.applicationId =
               this.step?.workflow?.page?.application?.id || '';
             this.loading = loading;
@@ -319,5 +328,22 @@ export class FormComponent extends SafeUnsubscribeComponent implements OnInit {
         });
       }
     }
+  }
+
+  /**
+   * Toggle page visibility.
+   */
+  togglePageVisibility() {
+    // If form is page
+    const callback = () => {
+      this.page = { ...this.page, visible: !this.page?.visible };
+    };
+    this.applicationService.togglePageVisibility(
+      {
+        id: this.id,
+        visible: this.page?.visible,
+      },
+      callback
+    );
   }
 }

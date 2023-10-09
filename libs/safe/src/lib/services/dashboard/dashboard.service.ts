@@ -230,4 +230,52 @@ export class SafeDashboardService {
       })
     );
   }
+
+  /**
+   * Edit dashboard name
+   *
+   * @param name new name
+   * @param callback callback method
+   */
+  public editName(name: string, callback?: any): void {
+    const dashboard = this.dashboard.getValue();
+    if (!dashboard?.id) return;
+    this.apollo
+      .mutate<EditDashboardMutationResponse>({
+        mutation: EDIT_DASHBOARD,
+        variables: {
+          id: dashboard.id,
+          name,
+        },
+      })
+      .subscribe(() => {
+        if (callback) callback();
+      });
+  }
+
+  /**
+   * Saves the buttons of the dashboard.
+   *
+   * @param buttons Button actions to save
+   */
+  public saveDashboardButtons(buttons: Dashboard['buttons']) {
+    const dashboard = this.dashboard.getValue();
+    if (!dashboard?.id) return;
+    buttons = buttons || [];
+
+    this.apollo
+      .mutate<EditDashboardMutationResponse>({
+        mutation: EDIT_DASHBOARD,
+        variables: {
+          id: dashboard.id,
+          buttons,
+        },
+      })
+      .subscribe(() => {
+        this.dashboard.next({
+          ...dashboard,
+          buttons,
+        });
+      });
+  }
 }

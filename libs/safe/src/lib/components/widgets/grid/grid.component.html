@@ -1,16 +1,20 @@
-<div class="h-full">
+<div class="h-full flex flex-col">
   <!-- CLASSIC VIEW -->
   <kendo-tilelayout-item-header
     *ngIf="header"
     class="widget-header border-b"
     [ngClass]="{
-      'border-transparent': !(settings.widgetDisplay?.showBorder ?? true),
-      'border-b-gray-300': settings.widgetDisplay?.showBorder ?? true
+      '!border-transparent': !(settings.widgetDisplay?.showBorder ?? true),
+      '!border-b-gray-300': settings.widgetDisplay?.showBorder ?? true
     }"
   >
     <span class="widget-title" [title]="settings.title">{{
       settings.title
     }}</span>
+    <!-- Sort selector -->
+    <ng-container *ngIf="sortFields.length > 0">
+      <ng-container *ngTemplateOutlet="sortTemplate"></ng-container>
+    </ng-container>
     <!-- Core grid actions -->
     <ng-container *ngIf="aggregations.length === 0">
       <ng-container *ngTemplateOutlet="layoutsTemplate"></ng-container>
@@ -41,6 +45,7 @@
 <!-- Core Grid ( data query / layout )-->
 <ng-template #coreGridTemplate>
   <safe-core-grid
+    class="min-h-0 flex-1"
     [defaultLayout]="layout?.display || {}"
     [settings]="gridSettings"
     [admin]="isAdmin"
@@ -59,17 +64,22 @@
     *ngIf="aggregation"
     [resourceId]="settings.resource"
     [aggregation]="aggregation"
+    [contextFilters]="widget.settings.contextFilters"
   ></safe-aggregation-grid>
 </ng-template>
 
 <!-- Quick action buttons -->
 <ng-template #floatingButtonsTemplate>
-  <div class="flex">
+  <div
+    class="flex overflow-hidden flex-1 max-w-fit"
+    *ngIf="settings.floatingButtons?.length > 0"
+  >
     <ng-container *ngFor="let floatingButton of settings.floatingButtons">
       <ui-button
         variant="primary"
         (click)="onQuickAction(floatingButton)"
         *ngIf="floatingButton.show"
+        class="whitespace-nowrap"
       >
         {{ floatingButton.name }}
       </ui-button>
@@ -77,11 +87,25 @@
   </div>
 </ng-template>
 
+<!-- Selection of sort -->
+<ng-template #sortTemplate>
+  <div uiFormFieldDirective class="!m-0 w-44">
+    <ui-select-menu
+      (selectedOption)="onSort($event)"
+      [placeholder]="'models.widget.sorting.select' | translate"
+    >
+      <ui-select-option *ngFor="let sort of sortFields" [value]="sort">
+        {{ sort.label }}
+      </ui-select-option>
+    </ui-select-menu>
+  </div>
+</ng-template>
+
 <!-- Selection of layouts -->
 <ng-template #layoutsTemplate>
   <ng-container *ngIf="layouts.length > 1">
     <kendo-dropdownlist
-      class="m-auto w-auto"
+      class="!my-auto flex-1 max-w-fit"
       [data]="layouts"
       textField="name"
       valueField="id"
@@ -96,7 +120,7 @@
 <ng-template #aggregationsTemplate>
   <ng-container *ngIf="aggregations.length > 1">
     <kendo-dropdownlist
-      class="m-auto w-auto"
+      class="!my-auto flex-1 max-w-fit"
       [data]="aggregations"
       textField="name"
       valueField="id"

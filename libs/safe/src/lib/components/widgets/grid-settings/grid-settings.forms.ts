@@ -1,8 +1,4 @@
-import {
-  UntypedFormBuilder,
-  UntypedFormGroup,
-  Validators,
-} from '@angular/forms';
+import { FormArray, FormBuilder, Validators } from '@angular/forms';
 import get from 'lodash/get';
 import {
   addNewField,
@@ -12,8 +8,14 @@ import {
 /** Default action name */
 const DEFAULT_ACTION_NAME = 'Action';
 
+/** TODO: Replace once we have UI */
+const DEFAULT_CONTEXT_FILTER = `{
+  "logic": "and",
+  "filters": []
+}`;
+
 /** Creating a new instance of the FormBuilder class. */
-const fb = new UntypedFormBuilder();
+const fb = new FormBuilder();
 
 /**
  * Floating button form factory.
@@ -21,7 +23,7 @@ const fb = new UntypedFormBuilder();
  * @param value default value ( if any )
  * @returns new form group for the floating button.
  */
-export const createButtonFormGroup = (value: any): UntypedFormGroup => {
+export const createButtonFormGroup = (value: any) => {
   const formGroup = fb.group({
     show: [value && value.show ? value.show : false, Validators.required],
     name: [
@@ -30,7 +32,8 @@ export const createButtonFormGroup = (value: any): UntypedFormGroup => {
     ],
     selectAll: [value && value.selectAll ? value.selectAll : false],
     selectPage: [value && value.selectPage ? value.selectPage : false],
-    goToNextStep: [value && value.goToNextStep ? value.goToNextStep : false],
+    goToNextStep: [get(value, 'goToNextStep', false)],
+    goToPreviousStep: [get(value, 'goToPreviousStep', false)],
     prefillForm: [value && value.prefillForm ? value.prefillForm : false],
     prefillTargetForm: [
       value && value.prefillTargetForm ? value.prefillTargetForm : null,
@@ -93,6 +96,22 @@ export const createButtonFormGroup = (value: any): UntypedFormGroup => {
       value && value.sendMail ? Validators.required : null
     ),
   });
+  // Avoid goToNextStep & goToPreviousStep to coexist
+  if (formGroup.get('goToNextStep')?.value) {
+    formGroup.get('goToPreviousStep')?.setValue(false);
+  } else if (formGroup.get('goToPreviousStep')?.value) {
+    formGroup.get('goToNextStep')?.setValue(false);
+  }
+  formGroup.get('goToNextStep')?.valueChanges.subscribe((value) => {
+    if (value) {
+      formGroup.get('goToPreviousStep')?.setValue(false);
+    }
+  });
+  formGroup.get('goToPreviousStep')?.valueChanges.subscribe((value) => {
+    if (value) {
+      formGroup.get('goToNextStep')?.setValue(false);
+    }
+  });
   return formGroup;
 };
 
@@ -103,10 +122,7 @@ export const createButtonFormGroup = (value: any): UntypedFormGroup => {
  * @param configuration previous configuration
  * @returns form group
  */
-export const createGridWidgetFormGroup = (
-  id: string,
-  configuration: any
-): UntypedFormGroup => {
+export const createGridWidgetFormGroup = (id: string, configuration: any) => {
   const formGroup = fb.group({
     id,
     title: [get(configuration, 'title', ''), Validators.required],
@@ -131,6 +147,10 @@ export const createGridWidgetFormGroup = (
           )
         : [createButtonFormGroup(null)]
     ),
+    sortFields: new FormArray([]),
+    contextFilters: [
+      get(configuration, 'contextFilters', DEFAULT_CONTEXT_FILTER),
+    ],
   });
   return formGroup;
 };

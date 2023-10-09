@@ -6,15 +6,23 @@ import {
 } from '../graphql/queries';
 import { BehaviorSubject } from 'rxjs';
 import * as SurveyCreator from 'survey-creator';
-import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
+import {
+  FormControl,
+  UntypedFormBuilder,
+  UntypedFormGroup,
+} from '@angular/forms';
 import { Dialog } from '@angular/cdk/dialog';
 import { SafeResourceDropdownComponent } from '../../components/resource-dropdown/resource-dropdown.component';
+import { SafeTestServiceDropdownComponent } from '../../components/test-service-dropdown/test-service-dropdown.component';
 import { SafeCoreGridComponent } from '../../components/ui/core-grid/core-grid.component';
 import { DomService } from '../../services/dom/dom.service';
-import { buildSearchButton, buildAddButton } from './utils';
+import {
+  buildSearchButton,
+  buildAddButton,
+  processNewCreatedRecords,
+} from './utils';
 import { QuestionResource } from '../types';
 import { SurveyModel } from 'survey-angular';
-import localForage from 'localforage';
 import { NgZone } from '@angular/core';
 
 /** Create the list of filter values for resources */
@@ -33,6 +41,9 @@ export const resourceConditions = [
   { value: '<=', text: 'less or equals' },
 ];
 
+/** Question temporary records */
+const temporaryRecordsForm = new FormControl([]);
+
 /**
  * Inits the resources question component for survey.
  *
@@ -40,7 +51,7 @@ export const resourceConditions = [
  * @param domService Shared DOM service
  * @param apollo Apollo client
  * @param dialog Dialog service
- * @param formBuilder Angular form service
+ * @param fb Angular form service
  * @param ngZone Angular Service to execute code inside Angular environment
  */
 export const init = (
@@ -48,7 +59,7 @@ export const init = (
   domService: DomService,
   apollo: Apollo,
   dialog: Dialog,
-  formBuilder: UntypedFormBuilder,
+  fb: UntypedFormBuilder,
   ngZone: NgZone
 ): void => {
   const getResourceById = (data: { id: string }) =>
@@ -132,7 +143,6 @@ export const init = (
           const instance: SafeResourceDropdownComponent = dropdown.instance;
           instance.resource = question.resource;
           instance.choice.subscribe((res) => editor.onChanged(res));
-          // instance.
         },
       };
 
@@ -245,7 +255,7 @@ export const init = (
             if (!gridSettingsRaw.fields) {
               return null;
             }
-            const auxForm = formBuilder.group(gridSettingsRaw);
+            const auxForm = fb.group(gridSettingsRaw);
             auxForm.controls.fields.setValue(gridSettingsRaw.fields);
             return auxForm;
           };
@@ -269,19 +279,45 @@ export const init = (
             return true;
           }
         },
+        type: 'resourcesTestService',
         visibleIndex: 3,
-        choices: (obj: any, choicesCallback: any) => {
-          if (obj.resource) {
-            getResourceRecordsById({ id: obj.resource }).subscribe(
-              ({ data }) => {
-                const choices = mapQuestionChoices(data, obj);
-                choices.unshift({ value: null });
-                choicesCallback(choices);
-              }
-            );
-          }
-        },
       });
+
+      const testServiceEditor = {
+        render: (editor: any, htmlElement: HTMLElement) => {
+          const question = editor.object;
+          let dropdownDiv: HTMLDivElement | null = null;
+          const updateDropdownInstance = () => {
+            if (question.displayField) {
+              if (dropdownDiv) {
+                dropdownDiv.remove();
+              }
+              dropdownDiv = document.createElement('div');
+              const instance = createTestServiceInstance(dropdownDiv);
+              if (instance) {
+                instance.resource = question.resource;
+                instance.record = question['test service'];
+                instance.textField = question.displayField;
+                instance.choice.subscribe((res: any) => editor.onChanged(res));
+              }
+              htmlElement.appendChild(dropdownDiv);
+            }
+          };
+          question.registerFunctionOnPropertyValueChanged(
+            'displayField',
+            updateDropdownInstance,
+            // eslint-disable-next-line no-underscore-dangle
+            editor.property_.name // a unique key to distinguish multiple
+          );
+          updateDropdownInstance();
+        },
+      };
+
+      SurveyCreator.SurveyPropertyEditorFactory.registerCustomEditor(
+        'resourcesTestService',
+        testServiceEditor
+      );
+
       Survey.Serializer.addProperty('resources', {
         name: 'displayAsGrid:boolean',
         category: 'Custom Questions',
@@ -654,7 +690,7 @@ export const init = (
             setAdvanceFilter(question.staticValue, question);
             this.populateChoices(question);
           } else {
-            question.survey.onValueChanged.add((_: any, options: any) => {
+            question.survey?.onValueChanged.add((_: any, options: any) => {
               if (options.name === question.selectQuestion) {
                 if (!!options.value || options.question.customQuestion) {
                   setAdvanceFilter(options.value, question);
@@ -679,7 +715,7 @@ export const init = (
               if (typeof value === 'string' && value.match(/^{*.*}$/)) {
                 const quest = value.substr(1, value.length - 2);
                 objElement.value = '';
-                question.survey.onValueChanged.add((_: any, options: any) => {
+                question.survey?.onValueChanged.add((_: any, options: any) => {
                   if (options.question.name === quest) {
                     if (options.value) {
                       setAdvanceFilter(options.value, objElement.field);
@@ -767,7 +803,8 @@ export const init = (
               question,
               question.gridFieldsSettings,
               true,
-              dialog
+              dialog,
+              temporaryRecordsForm
             );
             actionsButtons.appendChild(searchBtn);
 
@@ -853,7 +890,7 @@ export const init = (
       );
       instance = grid.instance;
       setGridInputs(instance, question);
-      question.survey.onValueChanged.add((_: any, options: any) => {
+      question.survey?.onValueChanged.add((_: any, options: any) => {
         if (options.name === question.name) {
           setGridInputs(instance, question);
         }
@@ -874,53 +911,8 @@ export const init = (
     question: any
   ) => {
     instance.multiSelect = true;
-    const query = question.gridFieldsSettings || {};
-    const temporaryRecords: any[] = [];
     const promises: any[] = [];
-    question.newCreatedRecords?.forEach((recordId: string) => {
-      const promise = new Promise<void>((resolve, reject) => {
-        localForage
-          .getItem(recordId)
-          .then((data: any) => {
-            if (data != null) {
-              // We ensure to make it only if such a record is found
-              const parsedData = JSON.parse(data);
-              temporaryRecords.push({
-                id: recordId,
-                template: parsedData.template,
-                ...parsedData.data,
-                isTemporary: true,
-              });
-            }
-            resolve();
-          })
-          .catch((error: any) => {
-            console.error(error); // Handle any errors that occur while getting the item
-            reject(error);
-          });
-      });
-      promises.push(promise);
-    });
-    const uuidRegExpr =
-      /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i;
-    const settings = {
-      query: {
-        ...query,
-        temporaryRecords: temporaryRecords,
-        filter: {
-          logic: 'and',
-          filters: [
-            {
-              field: 'ids',
-              operator: 'eq',
-              value:
-                question.value.filter((id: string) => !uuidRegExpr.test(id)) ||
-                [], //We exclude the temporary records by excluding id in UUID format
-            },
-          ],
-        },
-      },
-    };
+    const settings = await processNewCreatedRecords(question, true, promises);
     if (!question.readOnlyGrid) {
       Object.assign(settings, {
         actions: {
@@ -933,9 +925,30 @@ export const init = (
         },
       });
     }
+    // If search button exists, updates grid displayed records
+    if (question.canSearch) {
+      temporaryRecordsForm.setValue(settings.query.temporaryRecords);
+    }
     instance.settings = settings;
     Promise.allSettled(promises).then(() => {
       instance.configureGrid();
     });
+  };
+
+  /**
+   * Creates the SafeTestServiceDropdownComponent instance for the test service property
+   *
+   * @param htmlElement - The element that the directive is attached to.
+   * @returns The SafeTestServiceDropdownComponent instance
+   */
+  const createTestServiceInstance = (
+    htmlElement: any
+  ): SafeTestServiceDropdownComponent => {
+    const dropdown = domService.appendComponentToBody(
+      SafeTestServiceDropdownComponent,
+      htmlElement
+    );
+    const instance: SafeTestServiceDropdownComponent = dropdown.instance;
+    return instance;
   };
 };

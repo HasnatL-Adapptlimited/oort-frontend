@@ -2,7 +2,6 @@ import {
   AfterViewInit,
   Component,
   ElementRef,
-  HostListener,
   Input,
   OnDestroy,
   OnInit,
@@ -38,8 +37,12 @@ export type CardT = NonNullable<SummaryCardFormT['value']['card']> &
 import { Layout } from '../../../models/layout.model';
 import { FormControl } from '@angular/forms';
 import { clone, isNaN } from 'lodash';
+import { searchFilters } from '../../../utils/filter/search-filters';
 import { SnackbarService, UIPageChangeEvent } from '@oort-front/ui';
 import { Dialog } from '@angular/cdk/dialog';
+import { ContextService } from '../../../services/context/context.service';
+import { CompositeFilterDescriptor } from '@progress/kendo-data-query';
+import { SafeGridWidgetComponent } from '../grid/grid.component';
 
 /** Maximum width of the widget in column units */
 const MAX_COL_SPAN = 8;
@@ -85,14 +88,58 @@ export class SafeSummaryCardComponent
 
   private layout: Layout | null = null;
   private fields: any[] = [];
+  public sortFields: any[] = [];
+  private contextFilters: CompositeFilterDescriptor = {
+    logic: 'and',
+    filters: [],
+  };
+  /** @returns Get query filter */
+  get queryFilter(): CompositeFilterDescriptor {
+    let filter: CompositeFilterDescriptor | undefined;
+    if (this.searchControl.value) {
+      const skippedFields = ['id', 'incrementalId'];
+      filter = {
+        logic: 'and',
+        filters: [
+          { logic: 'and', filters: [this.layout?.query.filter] },
+          {
+            logic: 'or',
+            filters: searchFilters(
+              this.searchControl.value,
+              this.fields,
+              skippedFields
+            ),
+          },
+        ],
+      };
+    } else {
+      filter = {
+        logic: 'and',
+        filters: [this.layout?.query.filter],
+      };
+    }
+    return {
+      logic: 'and',
+      filters: [
+        filter,
+        this.contextService.injectDashboardFilterValues(this.contextFilters),
+      ],
+    };
+  }
 
   public searchControl = new FormControl('');
   public scrolling = false;
+  private resizeObserver!: ResizeObserver;
 
-  private filters: any = null;
+  // used to reset sort options when changing display mode
+  public sortControl = new FormControl(null);
+  private sortOptions = { field: null, order: '' };
 
   @ViewChild('summaryCardGrid') summaryCardGrid!: ElementRef<HTMLDivElement>;
   @ViewChild('pdf') pdf!: any;
+
+  /** Reference to grid component, when grid view is activated */
+  @ViewChild(SafeGridWidgetComponent) gridComponent?: SafeGridWidgetComponent;
 
   /**
    * Get the summary card pdf name
@@ -111,16 +158,6 @@ export class SafeSummaryCardComponent
   }
 
   /**
-   * Changes display when windows size changes.
-   *
-   * @param event window resize event
-   */
-  @HostListener('window:resize', ['$event'])
-  onWindowResize(event: any): void {
-    this.colsNumber = this.setColsNumber(event.target.innerWidth);
-  }
-
-  /**
    * Constructor for summary card component
    *
    * @param apollo Apollo service
@@ -130,6 +167,8 @@ export class SafeSummaryCardComponent
    * @param queryBuilder Query builder service
    * @param gridLayoutService Shared grid layout service
    * @param aggregationService Aggregation service
+   * @param contextService ContextService
+   * @param elementRef Element Ref
    */
   constructor(
     private apollo: Apollo,
@@ -138,25 +177,52 @@ export class SafeSummaryCardComponent
     private translate: TranslateService,
     private queryBuilder: QueryBuilderService,
     private gridLayoutService: SafeGridLayoutService,
-    private aggregationService: SafeAggregationService
+    private aggregationService: SafeAggregationService,
+    private contextService: ContextService,
+    private elementRef: ElementRef
   ) {
     super();
   }
 
   ngOnInit(): void {
+    // TODO: Replace once we have a proper UI
+    this.contextFilters = this.widget.settings.contextFilters
+      ? JSON.parse(this.widget.settings.contextFilters)
+      : this.contextFilters;
+
     this.setupDynamicCards();
-
-    this.colsNumber = this.setColsNumber(window.innerWidth);
     this.setupGridSettings();
-
     this.searchControl.valueChanges
       .pipe(debounceTime(2000), distinctUntilChanged())
       .subscribe((value) => {
         this.handleSearch(value || '');
       });
+
+    this.contextService.filter$
+      .pipe(debounceTime(500), takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.setupDynamicCards();
+      });
+
+    this.contextService.isFilterEnabled$
+      .pipe(debounceTime(500), takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.setupDynamicCards();
+      });
   }
 
   ngAfterViewInit(): void {
+    if (this.elementRef.nativeElement.parentElement) {
+      this.colsNumber = this.setColsNumber(
+        this.elementRef.nativeElement.parentElement.clientWidth
+      );
+      this.resizeObserver = new ResizeObserver(() => {
+        this.colsNumber = this.setColsNumber(
+          this.elementRef.nativeElement.parentElement.clientWidth
+        );
+      });
+      this.resizeObserver.observe(this.elementRef.nativeElement.parentElement);
+    }
     if (!this.settings.widgetDisplay?.usePagination) {
       this.summaryCardGrid.nativeElement.addEventListener(
         'scroll',
@@ -164,6 +230,19 @@ export class SafeSummaryCardComponent
           this.loadOnScroll(event);
         }
       );
+    }
+  }
+
+  /**
+   * Changes the display mode and reset the sort.
+   *
+   * @param value display mode.
+   */
+  changeDisplayMode(value: 'cards' | 'grid') {
+    if (this.displayMode != value) {
+      this.sortControl.setValue(null);
+      this.onSort(null);
+      this.displayMode = value;
     }
   }
 
@@ -230,41 +309,13 @@ export class SafeSummaryCardComponent
       this.pageInfo.length = this.sortedCachedCards.length;
     } else {
       this.loading = true;
-      const filters: {
-        field: string;
-        operator: string;
-        value: string | number;
-      }[] = [];
-      this.fields.forEach((field) => {
-        if (skippedFields.includes(field.name)) return;
-        if (field?.type === 'text')
-          filters.push({
-            field: field.name,
-            operator: 'contains',
-            value: search,
-          });
-        if (field?.type === 'numeric' && !isNaN(parseFloat(search)))
-          filters.push({
-            field: field.name,
-            operator: 'eq',
-            value: parseFloat(search),
-          });
-      });
-      const searchFilter = {
-        logic: 'or',
-        filters,
-      };
-
-      this.filters = {
-        logic: 'and',
-        filters: [searchFilter, this.layout?.query.filter],
-      };
-
       this.dataQuery
         ?.refetch({
           skip: 0,
           first: this.pageInfo.pageSize,
-          filter: this.filters,
+          filter: this.queryFilter,
+          sortField: this.sortOptions.field,
+          sortOrder: this.sortOptions.order,
         })
         .then(this.updateCards.bind(this));
     }
@@ -308,11 +359,13 @@ export class SafeSummaryCardComponent
     } else {
       this.cards = newCards;
 
-      this.summaryCardGrid.nativeElement.scroll({
-        top: 0,
-        left: 0,
-        behavior: 'smooth',
-      });
+      if (this.displayMode == 'cards') {
+        this.summaryCardGrid.nativeElement.scroll({
+          top: 0,
+          left: 0,
+          behavior: 'smooth',
+        });
+      }
     }
     this.pageInfo.length = get(
       res.data[layoutQueryName ?? 'recordsAggregation'],
@@ -362,15 +415,24 @@ export class SafeSummaryCardComponent
             }
           );
 
+          // Set sort fields
+          this.sortFields = [];
+          this.widget.settings.sortFields?.forEach((sortField: any) => {
+            this.sortFields.push(sortField);
+          });
+
           if (builtQuery) {
-            this.filters = layoutQuery.filter;
+            this.sortOptions = {
+              field: get(this.layout?.query, 'sort.field', null),
+              order: get(this.layout?.query, 'sort.order', ''),
+            };
             this.dataQuery = this.apollo.watchQuery<any>({
               query: builtQuery,
               variables: {
                 first: DEFAULT_PAGE_SIZE,
-                filter: this.filters,
-                sortField: get(layoutQuery, 'sort.field', null),
-                sortOrder: get(layoutQuery, 'sort.order', ''),
+                filter: this.queryFilter,
+                sortField: this.sortOptions.field,
+                sortOrder: this.sortOptions.order,
                 styles: layoutQuery.style || null,
               },
               fetchPolicy: 'network-only',
@@ -389,35 +451,32 @@ export class SafeSummaryCardComponent
    */
   private async setupGridSettings() {
     const card = this.settings.card;
-    if (!card || !card.resource || !card.layout) return;
+    if (!card || !card.resource || (!card.layout && !card.aggregation)) return;
 
-    this.gridLayoutService
-      .getLayouts(card.resource, { ids: [card.layout], first: 1 })
-      .then((res) => {
-        const layouts = res.edges.map((edge) => edge.node);
-        if (layouts.length > 0) {
-          const layout = layouts[0] || null;
-          this.gridSettings = {
-            ...{ template: get(this.settings, 'template', null) }, //TO MODIFY
-            ...{ resource: card.resource },
-            ...{ layouts: layout.id },
-            ...{
-              actions: {
-                //default actions, might need to modify later
-                addRecord: false,
-                convert: true,
-                delete: true,
-                export: true,
-                history: true,
-                inlineEdition: true,
-                showDetails: true,
-                update: true,
-              },
-            },
-          };
-        }
-      });
-    return;
+    const settings = {
+      template: get(this.settings, 'template', null), //TO MODIFY
+      resource: card.resource,
+      actions: {
+        //default actions, might need to modify later
+        addRecord: false,
+        convert: true,
+        delete: true,
+        export: true,
+        history: true,
+        inlineEdition: true,
+        showDetails: true,
+        update: true,
+      },
+    };
+
+    Object.assign(
+      settings,
+      card.aggregation
+        ? { aggregations: card.aggregation }
+        : { layouts: card.layout }
+    );
+
+    this.gridSettings = settings;
   }
 
   /**
@@ -430,11 +489,13 @@ export class SafeSummaryCardComponent
   ) {
     if (!card.aggregation || !card.resource) return;
     this.loading = true;
+
     this.dataQuery = this.aggregationService.aggregationDataWatchQuery(
       card.resource,
       card.aggregation,
       DEFAULT_PAGE_SIZE,
-      0
+      0,
+      this.contextService.injectDashboardFilterValues(this.contextFilters)
     );
 
     this.dataQuery.valueChanges
@@ -481,9 +542,9 @@ export class SafeSummaryCardComponent
         .refetch({
           first: this.pageInfo.pageSize,
           skip: event.skip,
-          filters: this.filters,
-          sortField: get(layoutQuery, 'sort.field', null),
-          sortOrder: get(layoutQuery, 'sort.order', ''),
+          filters: this.queryFilter,
+          sortField: this.sortOptions.field,
+          sortOrder: this.sortOptions.order,
           styles: layoutQuery?.style || null,
         })
         .then(this.updateCards.bind(this));
@@ -515,5 +576,35 @@ export class SafeSummaryCardComponent
 
   override ngOnDestroy(): void {
     super.ngOnDestroy();
+    this.resizeObserver.disconnect();
+  }
+
+  /**
+   * Handles sorting on the cards.
+   *
+   * @param e Selected sort option.
+   */
+  public onSort(e: any) {
+    if (e) {
+      this.sortOptions = { field: e.field, order: e.order };
+    } else {
+      this.sortOptions = {
+        field: get(this.layout?.query, 'sort.field', null),
+        order: get(this.layout?.query, 'sort.order', ''),
+      };
+    }
+    if (this.gridComponent) {
+      this.gridComponent.onSort(e);
+    } else {
+      if (!this.dataQuery) return;
+      this.dataQuery
+        .refetch({
+          first: this.pageInfo.pageSize,
+          filter: this.queryFilter,
+          sortField: this.sortOptions.field,
+          sortOrder: this.sortOptions.order,
+        })
+        .then(() => (this.loading = false));
+    }
   }
 }

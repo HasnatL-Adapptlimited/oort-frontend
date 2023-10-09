@@ -92,7 +92,7 @@ const TEMPLATE: StoryFn<SafeExpressionsComponent> = () => ({
 });
 
 /**
- * Default story
+ * Default story.
  */
 export const DEFAULT = {
   render: TEMPLATE,

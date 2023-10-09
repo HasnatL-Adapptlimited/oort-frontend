@@ -1,33 +1,24 @@
 import { Apollo, QueryRef } from 'apollo-angular';
 import { Component, OnInit } from '@angular/core';
-import {
-  UntypedFormBuilder,
-  UntypedFormGroup,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, Validators } from '@angular/forms';
 import {
   ContentType,
   CONTENT_TYPES,
-  Form,
+  WIDGET_TYPES,
   SafeApplicationService,
   SafeUnsubscribeComponent,
 } from '@oort-front/safe';
-import { BehaviorSubject, Observable, takeUntil } from 'rxjs';
+import { takeUntil } from 'rxjs';
 import { AddFormMutationResponse, ADD_FORM } from './graphql/mutations';
 import { GET_FORMS, GetFormsQueryResponse } from './graphql/queries';
 import { TranslateService } from '@ngx-translate/core';
-import { ApolloQueryResult } from '@apollo/client';
-import {
-  getCachedValues,
-  updateQueryUniqueValues,
-} from '../../../utils/update-queries';
 import { SnackbarService } from '@oort-front/ui';
 import { Dialog } from '@angular/cdk/dialog';
 
-/**
- * Number of items per page.
- */
+/** Number of items per page */
 const ITEMS_PER_PAGE = 10;
+/** Widget types that can be used as single widget page */
+const SINGLE_WIDGET_PAGE_TYPES = ['grid', 'map', 'summaryCard', 'tabs'];
 
 /**
  * Add page component.
@@ -41,27 +32,25 @@ export class AddPageComponent
   extends SafeUnsubscribeComponent
   implements OnInit
 {
-  // === DATA ===
+  /** Available content types */
   public contentTypes = CONTENT_TYPES;
-  private forms = new BehaviorSubject<Form[]>([]);
-  public forms$!: Observable<Form[]>;
-  private cachedForms: Form[] = [];
-  private formsQuery!: QueryRef<GetFormsQueryResponse>;
-  private pageInfo = {
-    endCursor: '',
-    hasNextPage: true,
-  };
-  private loading = true;
-  public loadingMore = false;
-
-  // === REACTIVE FORM ===
-  public pageForm: UntypedFormGroup = new UntypedFormGroup({});
+  /** Available widgets for addition */
+  public availableWidgets: any[] = WIDGET_TYPES;
+  /** Forms query */
+  public formsQuery!: QueryRef<GetFormsQueryResponse>;
+  /** New page form */
+  public pageForm = this.fb.group({
+    type: ['', Validators.required],
+    content: [''],
+    newForm: [false],
+  });
+  /** Current step in stepper */
   public step = 1;
 
   /**
    * Add page component
    *
-   * @param formBuilder Angular form builder
+   * @param fb Angular form builder
    * @param apollo Apollo service
    * @param applicationService Shared application service
    * @param dialog Dialog service
@@ -69,7 +58,7 @@ export class AddPageComponent
    * @param translate Angular translate service
    */
   constructor(
-    private formBuilder: UntypedFormBuilder,
+    private fb: FormBuilder,
     private apollo: Apollo,
     private applicationService: SafeApplicationService,
     public dialog: Dialog,
@@ -80,11 +69,6 @@ export class AddPageComponent
   }
 
   ngOnInit(): void {
-    this.pageForm = this.formBuilder.group({
-      type: ['', Validators.required],
-      content: [''],
-      newForm: [false],
-    });
     this.pageForm.get('type')?.valueChanges.subscribe((type) => {
       const contentControl = this.pageForm.controls.content;
       if (type === ContentType.form) {
@@ -92,26 +76,9 @@ export class AddPageComponent
           query: GET_FORMS,
           variables: {
             first: ITEMS_PER_PAGE,
-            afterCursor: null,
-            filter: {
-              logic: 'and',
-              filters: [
-                {
-                  field: 'name',
-                  operator: 'contains',
-                  value: '',
-                },
-              ],
-            },
+            sortField: 'name',
           },
         });
-
-        this.forms$ = this.forms.asObservable();
-        this.formsQuery.valueChanges
-          .pipe(takeUntil(this.destroy$))
-          .subscribe((results) => {
-            this.updateValues(results.data, results.loading);
-          });
         contentControl.setValidators([Validators.required]);
         contentControl.updateValueAndValidity();
       } else {
@@ -120,6 +87,15 @@ export class AddPageComponent
         contentControl.updateValueAndValidity();
       }
       this.onNext();
+    });
+
+    // Set the available widgets that can directly be added as single widget dashboard
+    this.availableWidgets = this.availableWidgets.filter((widget: any) => {
+      for (const wid of SINGLE_WIDGET_PAGE_TYPES) {
+        if (widget.id.includes(wid)) {
+          return widget;
+        }
+      }
     });
   }
 
@@ -144,7 +120,7 @@ export class AddPageComponent
   }
 
   /**
-   * Submit form to application service for creation
+   * Submit form to application service for creation of a new page
    */
   onSubmit(): void {
     this.applicationService.addPage(this.pageForm.value);
@@ -238,89 +214,47 @@ export class AddPageComponent
   }
 
   /**
-   * Fetches next page of forms to add to list.
+   * Add a new widget as a dashboard page.
+   * Skip the onSubmit method, and use custom event handling to call application service to add the page with new content.
    *
-   * @param value boolean that decides wether a next page of forms should be fetched
+   * @param widget new widget.
    */
-  public onScrollDataSource(value: boolean): void {
-    if (!this.loadingMore && this.pageInfo.hasNextPage) {
-      this.loadingMore = true;
-      this.fetchMoreForms(value);
-    }
+  onAddWidget(widget: any): void {
+    // Build the structure and set width of widget
+    const structure = [
+      {
+        ...widget,
+        defaultCols: 8,
+      },
+    ];
+    // Directly call application service to add page with structure
+    this.applicationService.addPage(
+      {
+        type: 'dashboard',
+      },
+      structure
+    );
   }
 
   /**
-   * Filters forms by name
+   * Update query based on text search.
    *
-   * @param filter string used to filter.
+   * @param search Search text from the graphql select
    */
-  public onFilterDataSource(filter: string): void {
-    if (!this.loadingMore) {
-      this.loadingMore = true;
-      this.fetchMoreForms(false, filter);
-    }
-  }
-
-  /**
-   * Fetches more forms using filtering and pagination.
-   *
-   * @param nextPage boolean to indicate if we must fetch the next page.
-   * @param filter the forms fetched must respect this filter
-   */
-  public fetchMoreForms(nextPage: boolean = false, filter: string = '') {
-    const variables: any = {
-      first: ITEMS_PER_PAGE,
-      afterCursor: nextPage ? this.pageInfo.endCursor : null,
+  onSearchChange(search: string): void {
+    const variables = this.formsQuery.variables;
+    this.formsQuery.refetch({
+      ...variables,
       filter: {
         logic: 'and',
         filters: [
           {
             field: 'name',
             operator: 'contains',
-            value: filter,
+            value: search,
           },
         ],
       },
-    };
-    const cachedValues: GetFormsQueryResponse = getCachedValues(
-      this.apollo.client,
-      GET_FORMS,
-      variables
-    );
-    if (filter || !nextPage) {
-      this.cachedForms = [];
-    }
-    if (cachedValues) {
-      this.updateValues(cachedValues, false);
-    } else {
-      if (filter) {
-        this.formsQuery.refetch(variables);
-      } else {
-        this.formsQuery
-          .fetchMore({
-            variables,
-          })
-          .then((results: ApolloQueryResult<GetFormsQueryResponse>) => {
-            this.updateValues(results.data, results.loading);
-          });
-      }
-    }
-  }
-
-  /**
-   * Updates local list with given data
-   *
-   * @param data New values to update forms
-   * @param loading Loading state
-   */
-  private updateValues(data: GetFormsQueryResponse, loading: boolean) {
-    this.cachedForms = updateQueryUniqueValues(
-      this.cachedForms,
-      data.forms.edges.map((x) => x.node),
-      'id'
-    );
-    this.forms.next(this.cachedForms);
-    this.pageInfo = data.forms.pageInfo;
-    this.loadingMore = loading;
+    });
   }
 }
