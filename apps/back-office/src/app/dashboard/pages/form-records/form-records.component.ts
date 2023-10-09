@@ -1,6 +1,7 @@
 import { Apollo, QueryRef } from 'apollo-angular';
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import * as Sentry from '@sentry/angular-ivy';
 import {
   GetFormByIdQueryResponse,
   GetFormRecordsQueryResponse,
@@ -113,6 +114,7 @@ export class FormRecordsComponent
     this.id = this.route.snapshot.paramMap.get('id') || '';
     if (this.id !== null) {
       this.getFormData();
+      Sentry.captureMessage('Grabbed form data');
     }
   }
 
@@ -121,6 +123,8 @@ export class FormRecordsComponent
    */
   private getFormData(): void {
     this.loading = true;
+
+    Sentry.captureMessage('Grabbed form data');
 
     // get the records linked to the form
     this.recordsQuery = this.apollo.watchQuery<GetFormRecordsQueryResponse>({
@@ -351,6 +355,7 @@ export class FormRecordsComponent
             },
             error: (err) => {
               this.snackBar.openSnackBar(err.message, { error: true });
+              Sentry.captureException(err);
             },
           });
       }
@@ -444,11 +449,14 @@ export class FormRecordsComponent
           );
           this.getFormData();
           this.showUpload = false;
+          throw new Error('Test Sentry');
         }
       },
       error: (error: any) => {
         this.snackBar.openSnackBar(error.error, { error: true });
         this.showUpload = false;
+        Sentry.captureMessage('Grabbed form data');
+        Sentry.captureException(error);
       },
     });
   }
@@ -489,6 +497,7 @@ export class FormRecordsComponent
               }),
               { error: true }
             );
+            Sentry.captureException(errors);
           } else {
             this.snackBar.openSnackBar(
               this.translate.instant('common.notifications.objectRestored', {
