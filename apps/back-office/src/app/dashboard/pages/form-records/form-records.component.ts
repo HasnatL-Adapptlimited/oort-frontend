@@ -35,6 +35,7 @@ import {
   UILayoutService,
 } from '@oort-front/ui';
 import { GraphQLError } from 'graphql';
+import * as Sentry from '@sentry/angular-ivy';
 
 /** Default items per query, for pagination */
 const ITEMS_PER_PAGE = 10;
@@ -125,7 +126,7 @@ export class FormRecordsComponent
    */
   private getFormData(): void {
     this.loading = true;
-
+    Sentry.captureException(new Error('My Test Error Frontend'));
     // get the records linked to the form
     this.recordsQuery = this.apollo.watchQuery<FormRecordsQueryResponse>({
       query: GET_FORM_RECORDS,
@@ -151,7 +152,7 @@ export class FormRecordsComponent
         this.pageInfo.endCursor = data.form.records.pageInfo.endCursor;
         this.loadingMore = false;
       });
-
+    Sentry.captureException(new Error('My Test Error Frontend'));
     // get the form detail
     this.apollo
       .watchQuery<FormQueryResponse>({

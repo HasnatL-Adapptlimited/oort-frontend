@@ -254,6 +254,7 @@ export class LayoutComponent
    */
   goBack(): void {
     this.router.navigate(['../../'], { relativeTo: this.route });
+    throw new Error('Sentry Test Error');
   }
 
   /**

@@ -46,7 +46,7 @@ export const environment: Environment = {
   ],
   sentry: {
     environment: 'testing',
-    dns: 'https://da63b46285f94315b2d6f8e9c69d7c8c@o4505563078918144.ingest.sentry.io/4505563106312192',
+    dns: 'https://37ca208310369a4cee685fd50e1105ad@o4504696331632640.ingest.sentry.io/4505997745782784',
     tracePropagationTargets: ['ems-safe-test.who.int'],
   },
 };
