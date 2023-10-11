@@ -13,6 +13,7 @@ const authConfig: AuthConfig = {
   responseType: 'code',
   showDebugInformation: true,
   strictDiscoveryDocumentValidation: false,
+
 };
 
 // /**
