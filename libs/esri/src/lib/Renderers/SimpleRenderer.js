@@ -1,4 +1,4 @@
-const Renderer =require('./Renderer');
+const Renderer = require('./Renderer');
 
 var SimpleRenderer = Renderer.extend({
   initialize: function (rendererJson, options) {
@@ -14,10 +14,10 @@ var SimpleRenderer = Renderer.extend({
 
   _getSymbol: function () {
     return this._symbols[0];
-  }
+  },
 });
 
-function simpleRenderer (rendererJson, options) {
+function simpleRenderer(rendererJson, options) {
   return new SimpleRenderer(rendererJson, options);
 }
 
@@ -25,4 +25,4 @@ module.exports = {
   SimpleRenderer,
   simpleRenderer,
   default: simpleRenderer,
-}
+};

@@ -1,10 +1,13 @@
-const Renderer =require('./Renderer');
+const Renderer = require('./Renderer');
 
 var ClassBreaksRenderer = Renderer.extend({
   initialize: function (rendererJson, options) {
     Renderer.prototype.initialize.call(this, rendererJson, options);
     this._field = this._rendererJson.field;
-    if (this._rendererJson.normalizationType && this._rendererJson.normalizationType === 'esriNormalizeByField') {
+    if (
+      this._rendererJson.normalizationType &&
+      this._rendererJson.normalizationType === 'esriNormalizeByField'
+    ) {
       this._normalizationField = this._rendererJson.normalizationField;
     }
     this._createSymbols();
@@ -18,7 +21,10 @@ var ClassBreaksRenderer = Renderer.extend({
 
     // create a symbol for each class break
     for (var i = classbreaks.length - 1; i >= 0; i--) {
-      if (this.options.proportionalPolygon && this._rendererJson.backgroundFillSymbol) {
+      if (
+        this.options.proportionalPolygon &&
+        this._rendererJson.backgroundFillSymbol
+      ) {
         symbol = this._newSymbol(this._rendererJson.backgroundFillSymbol);
       } else {
         symbol = this._newSymbol(classbreaks[i].symbol);
@@ -56,10 +62,10 @@ var ClassBreaksRenderer = Renderer.extend({
       symbol = this._symbols[i];
     }
     return symbol;
-  }
+  },
 });
 
-function classBreaksRenderer (rendererJson, options) {
+function classBreaksRenderer(rendererJson, options) {
   return new ClassBreaksRenderer(rendererJson, options);
 }
 
@@ -67,4 +73,4 @@ module.exports = {
   ClassBreaksRenderer,
   classBreaksRenderer,
   default: classBreaksRenderer,
-}
+};

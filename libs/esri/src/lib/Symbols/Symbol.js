@@ -8,7 +8,7 @@ var Symbol = Class.extend({
     this._isDefault = false;
     this._layerTransparency = 1;
     if (options && options.layerTransparency) {
-      this._layerTransparency = 1 - (options.layerTransparency / 100.0);
+      this._layerTransparency = 1 - options.layerTransparency / 100.0;
     }
   },
 
@@ -43,7 +43,10 @@ var Symbol = Class.extend({
       var normField = sizeInfo.normalizationField;
       var normValue = attr ? parseFloat(attr[normField]) : undefined;
 
-      if (featureValue === null || (normField && ((isNaN(normValue) || normValue === 0)))) {
+      if (
+        featureValue === null ||
+        (normField && (isNaN(normValue) || normValue === 0))
+      ) {
         return null;
       }
 
@@ -51,14 +54,20 @@ var Symbol = Class.extend({
         featureValue /= normValue;
       }
 
-      if (minSize !== null && maxSize !== null && minDataValue !== null && maxDataValue !== null) {
+      if (
+        minSize !== null &&
+        maxSize !== null &&
+        minDataValue !== null &&
+        maxDataValue !== null
+      ) {
         if (featureValue <= minDataValue) {
           size = minSize;
         } else if (featureValue >= maxDataValue) {
           size = maxSize;
         } else {
-          featureRatio = (featureValue - minDataValue) / (maxDataValue - minDataValue);
-          size = minSize + (featureRatio * (maxSize - minSize));
+          featureRatio =
+            (featureValue - minDataValue) / (maxDataValue - minDataValue);
+          size = minSize + featureRatio * (maxSize - minSize);
         }
       }
       size = isNaN(size) ? 0 : size;
@@ -68,7 +77,9 @@ var Symbol = Class.extend({
 
   getColor: function (feature, colorInfo) {
     // required information to get color
-    if (!(feature.properties && colorInfo && colorInfo.field && colorInfo.stops)) {
+    if (
+      !(feature.properties && colorInfo && colorInfo.field && colorInfo.stops)
+    ) {
       return null;
     }
 
@@ -77,7 +88,10 @@ var Symbol = Class.extend({
     var lowerBoundColor, upperBoundColor, lowerBound, upperBound;
     var normField = colorInfo.normalizationField;
     var normValue = attr ? parseFloat(attr[normField]) : undefined;
-    if (featureValue === null || (normField && ((isNaN(normValue) || normValue === 0)))) {
+    if (
+      featureValue === null ||
+      (normField && (isNaN(normValue) || normValue === 0))
+    ) {
       return null;
     }
 
@@ -121,7 +135,10 @@ var Symbol = Class.extend({
             // weights to each of the rgba colors and adding them together
             var interpolatedColor = [];
             for (var j = 0; j < 4; j++) {
-              interpolatedColor[j] = Math.round((lowerBoundColor[j] * lowerBoundColorWeight) + (upperBoundColor[j] * upperBoundColorWeight));
+              interpolatedColor[j] = Math.round(
+                lowerBoundColor[j] * lowerBoundColorWeight +
+                  upperBoundColor[j] * upperBoundColorWeight
+              );
             }
             return interpolatedColor;
           } else {
@@ -136,7 +153,7 @@ var Symbol = Class.extend({
     }
     // if we get to here, none of the cases apply so return null
     return null;
-  }
+  },
 });
 
 // export function symbol (symbolJson) {
@@ -146,4 +163,4 @@ var Symbol = Class.extend({
 module.exports = {
   Symbol,
   default: Symbol,
-}
+};

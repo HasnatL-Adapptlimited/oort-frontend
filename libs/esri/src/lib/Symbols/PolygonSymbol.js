@@ -4,7 +4,7 @@ const lineSymbol = require('./LineSymbol');
 var PolygonSymbol = Symbol.extend({
   statics: {
     // not implemented: 'esriSFSBackwardDiagonal','esriSFSCross','esriSFSDiagonalCross','esriSFSForwardDiagonal','esriSFSHorizontal','esriSFSNull','esriSFSVertical'
-    POLYGONTYPES: ['esriSFSSolid']
+    POLYGONTYPES: ['esriSFSSolid'],
   },
   initialize: function (symbolJson, options) {
     Symbol.prototype.initialize.call(this, symbolJson, options);
@@ -34,9 +34,11 @@ var PolygonSymbol = Symbol.extend({
 
     // set the fill for the polygon
     if (this._symbolJson) {
-      if (this._symbolJson.color &&
-          // don't fill polygon if type is not supported
-          PolygonSymbol.POLYGONTYPES.indexOf(this._symbolJson.style >= 0)) {
+      if (
+        this._symbolJson.color &&
+        // don't fill polygon if type is not supported
+        PolygonSymbol.POLYGONTYPES.indexOf(this._symbolJson.style >= 0)
+      ) {
         this._styles.fill = true;
         this._styles.fillColor = this.colorValue(this._symbolJson.color);
         this._styles.fillOpacity = this.alphaValue(this._symbolJson.color);
@@ -56,15 +58,15 @@ var PolygonSymbol = Symbol.extend({
       }
     }
     return this._styles;
-  }
+  },
 });
 
-function polygonSymbol (symbolJson, options) {
+function polygonSymbol(symbolJson, options) {
   return new PolygonSymbol(symbolJson, options);
 }
 
 module.exports = {
   PolygonSymbol,
   polygonSymbol,
-  default: polygonSymbol
-}
+  default: polygonSymbol,
+};

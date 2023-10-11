@@ -40,9 +40,7 @@
         "@typescript-eslint/naming-convention": [
           1,
           {
-            "selector": [
-              "enumMember"
-            ],
+            "selector": ["enumMember"],
             "format": ["camelCase", "UPPER_CASE"]
           }
         ],

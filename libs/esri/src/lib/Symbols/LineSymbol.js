@@ -3,7 +3,13 @@ const Symbol = require('./Symbol');
 var LineSymbol = Symbol.extend({
   statics: {
     // Not implemented 'esriSLSNull'
-    LINETYPES: ['esriSLSDash', 'esriSLSDot', 'esriSLSDashDotDot', 'esriSLSDashDot', 'esriSLSSolid']
+    LINETYPES: [
+      'esriSLSDash',
+      'esriSLSDot',
+      'esriSLSDashDotDot',
+      'esriSLSDashDot',
+      'esriSLSSolid',
+    ],
   },
   initialize: function (symbolJson, options) {
     Symbol.prototype.initialize.call(this, symbolJson, options);
@@ -60,7 +66,9 @@ var LineSymbol = Symbol.extend({
   style: function (feature, visualVariables) {
     if (!this._isDefault && visualVariables) {
       if (visualVariables.sizeInfo) {
-        var calculatedSize = this.pixelValue(this.getSize(feature, visualVariables.sizeInfo));
+        var calculatedSize = this.pixelValue(
+          this.getSize(feature, visualVariables.sizeInfo)
+        );
         if (calculatedSize) {
           this._styles.weight = calculatedSize;
         }
@@ -74,10 +82,10 @@ var LineSymbol = Symbol.extend({
       }
     }
     return this._styles;
-  }
+  },
 });
 
-function lineSymbol (symbolJson, options) {
+function lineSymbol(symbolJson, options) {
   return new LineSymbol(symbolJson, options);
 }
 
@@ -85,4 +93,4 @@ module.exports = {
   LineSymbol,
   lineSymbol,
   default: lineSymbol,
-}
+};

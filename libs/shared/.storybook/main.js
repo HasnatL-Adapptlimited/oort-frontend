@@ -1,10 +1,12 @@
 module.exports = {
   stories: ['../**/*.stories.mdx', '../**/*.stories.@(js|jsx|ts|tsx)'],
   addons: ['@storybook/addon-essentials', '@storybook/addon-mdx-gfm'],
-  staticDirs: [{
-    from: '../../../assets',
-    to: '/assets'
-  }]
+  staticDirs: [
+    {
+      from: '../../../assets',
+      to: '/assets',
+    },
+  ],
   // webpackFinal: async (config, { configType }) => {
   //   // `configType` has a value of 'DEVELOPMENT' or 'PRODUCTION'
   //   // You can change the configuration based on that.
@@ -22,15 +24,13 @@ module.exports = {
   //   // Return the altered config
   //   return config;
   // },
-  ,
-
   docs: {
-    autodocs: true
+    autodocs: true,
   },
   framework: {
     name: '@storybook/angular',
-    options: {}
-  }
+    options: {},
+  },
 };
 
 // To customize your webpack configuration you can use the webpackFinal field.

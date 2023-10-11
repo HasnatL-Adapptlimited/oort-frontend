@@ -7,14 +7,16 @@ const polygonSymbol = require('../Symbols/PolygonSymbol');
 var Renderer = Class.extend({
   options: {
     proportionalPolygon: false,
-    clickable: true
+    clickable: true,
   },
 
   initialize: function (rendererJson, options) {
     this._rendererJson = rendererJson;
     this._pointSymbols = false;
     this._symbols = [];
-    this._visualVariables = this._parseVisualVariables(rendererJson.visualVariables);
+    this._visualVariables = this._parseVisualVariables(
+      rendererJson.visualVariables
+    );
     Util.setOptions(this, options);
   },
 
@@ -65,7 +67,12 @@ var Renderer = Class.extend({
     var sym = this._getSymbol(geojson);
     if (sym && sym.pointToLayer) {
       // right now custom panes are the only option pushed through
-      return sym.pointToLayer(geojson, latlng, this._visualVariables, this.options);
+      return sym.pointToLayer(
+        geojson,
+        latlng,
+        this._visualVariables,
+        this.options
+      );
     }
     // invisible symbology
     return circleMarker(latlng, { radius: 0, opacity: 0 });
@@ -79,7 +86,10 @@ var Renderer = Class.extend({
     // find the symbol to represent this feature
     var sym = this._getSymbol(feature);
     if (sym) {
-      return this.mergeStyles(sym.style(feature, this._visualVariables), userStyles);
+      return this.mergeStyles(
+        sym.style(feature, this._visualVariables),
+        userStyles
+      );
     } else {
       // invisible symbology
       return this.mergeStyles({ opacity: 0, fillOpacity: 0 }, userStyles);
@@ -104,10 +114,10 @@ var Renderer = Class.extend({
       }
     }
     return mergedStyles;
-  }
+  },
 });
 
 module.exports = {
   Renderer,
   default: Renderer,
-}
+};

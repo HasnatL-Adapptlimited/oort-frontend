@@ -1,17 +1,25 @@
-const {
-  marker,
-  extend,
-  circleMarker
-} = require('leaflet');
+const { marker, extend, circleMarker } = require('leaflet');
 const leaflet = require('leaflet');
 const leafletIcon = leaflet.icon;
 const Symbol = require('./Symbol');
-const { version, squareMarker, xMarker, crossMarker, diamondMarker } = require('leaflet-shape-markers');
+const {
+  version,
+  squareMarker,
+  xMarker,
+  crossMarker,
+  diamondMarker,
+} = require('leaflet-shape-markers');
 
 var PointSymbol = Symbol.extend({
-
   statics: {
-    MARKERTYPES: ['esriSMSCircle', 'esriSMSCross', 'esriSMSDiamond', 'esriSMSSquare', 'esriSMSX', 'esriPMS']
+    MARKERTYPES: [
+      'esriSMSCircle',
+      'esriSMSCross',
+      'esriSMSDiamond',
+      'esriSMSSquare',
+      'esriSMSX',
+      'esriPMS',
+    ],
   },
 
   initialize: function (symbolJson, options) {
@@ -23,16 +31,24 @@ var PointSymbol = Symbol.extend({
     if (symbolJson) {
       if (symbolJson.type === 'esriPMS') {
         var imageUrl = this._symbolJson.url;
-        if ((imageUrl && imageUrl.substr(0, 7) === 'http://') || (imageUrl.substr(0, 8) === 'https://')) {
+        if (
+          (imageUrl && imageUrl.substr(0, 7) === 'http://') ||
+          imageUrl.substr(0, 8) === 'https://'
+        ) {
           // web image
           url = this.sanitize(imageUrl);
           this._iconUrl = url;
         } else {
           url = this.serviceUrl + 'images/' + imageUrl;
-          this._iconUrl = options && options.token ? url + '?token=' + options.token : url;
+          this._iconUrl =
+            options && options.token ? url + '?token=' + options.token : url;
         }
         if (symbolJson.imageData) {
-          this._iconUrl = 'data:' + symbolJson.contentType + ';base64,' + symbolJson.imageData;
+          this._iconUrl =
+            'data:' +
+            symbolJson.contentType +
+            ';base64,' +
+            symbolJson.imageData;
         }
         // leaflet does not allow resizing icons so keep a hash of different
         // icon sizes to try and keep down on the number of icons created
@@ -64,7 +80,11 @@ var PointSymbol = Symbol.extend({
   },
 
   _fillStyles: function () {
-    if (this._symbolJson.outline && this._symbolJson.size > 0 && this._symbolJson.outline.style !== 'esriSLSNull') {
+    if (
+      this._symbolJson.outline &&
+      this._symbolJson.size > 0 &&
+      this._symbolJson.outline.style !== 'esriSLSNull'
+    ) {
       this._styles.stroke = true;
       this._styles.weight = this.pixelValue(this._symbolJson.outline.width);
       this._styles.color = this.colorValue(this._symbolJson.outline.color);
@@ -103,7 +123,7 @@ var PointSymbol = Symbol.extend({
     var icon = leafletIcon({
       iconUrl: this._iconUrl,
       iconSize: [width, height],
-      iconAnchor: [xOffset, yOffset]
+      iconAnchor: [xOffset, yOffset],
     });
     this._icons[options.width.toString()] = icon;
     return icon;
@@ -154,10 +174,10 @@ var PointSymbol = Symbol.extend({
     }
     this._styles.radius = size / 2.0;
     return circleMarker(latlng, extend({}, this._styles, options));
-  }
+  },
 });
 
-function pointSymbol (symbolJson, options) {
+function pointSymbol(symbolJson, options) {
   return new PointSymbol(symbolJson, options);
 }
 
@@ -166,4 +186,4 @@ module.exports = {
   pointSymbol,
   version,
   default: pointSymbol,
-}
+};

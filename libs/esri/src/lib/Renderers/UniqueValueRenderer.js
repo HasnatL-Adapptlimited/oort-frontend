@@ -45,10 +45,10 @@ var UniqueValueRenderer = Renderer.extend({
       /* eslint-enable */
     }
     return symbol;
-  }
+  },
 });
 
-function uniqueValueRenderer (rendererJson, options) {
+function uniqueValueRenderer(rendererJson, options) {
   return new UniqueValueRenderer(rendererJson, options);
 }
 
@@ -56,4 +56,4 @@ module.exports = {
   UniqueValueRenderer,
   uniqueValueRenderer,
   default: uniqueValueRenderer,
-}
+};

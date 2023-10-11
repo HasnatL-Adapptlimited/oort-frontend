@@ -1,4 +1,4 @@
-@import "variables.scss";
+@import 'variables.scss';
 
 ::ng-deep .sv-boolean:not(.sv-boolean--checked) {
   .sv-boolean__switch {
@@ -19,7 +19,7 @@
   flex-direction: column;
   max-width: 100%;
 
-  .sv_q_erbox:not([style*="display: none"]):not([style*="display:none"]) {
+  .sv_q_erbox:not([style*='display: none']):not([style*='display:none']) {
     background-color: transparent;
     border: none;
     order: 2;

@@ -6,7 +6,7 @@ const classBreaksRenderer = require('./Renderers/ClassBreaksRenderer');
 const uniqueValueRenderer = require('./Renderers/UniqueValueRenderer');
 const simpleRenderer = require('./Renderers/SimpleRenderer');
 
-function wireUpRenderers () {
+function wireUpRenderers() {
   if (this.options.ignoreRenderer) {
     return;
   }
@@ -21,14 +21,18 @@ function wireUpRenderers () {
       if (error) {
         console.warn('failed to load metadata from the service.');
         return;
-      } if (response && response.drawingInfo) {
+      }
+      if (response && response.drawingInfo) {
         if (this.options.drawingInfo) {
           // allow L.esri.webmap (and others) to override service symbology with info provided in layer constructor
           response.drawingInfo = this.options.drawingInfo;
         }
 
         // the default pane for lines and polygons is 'overlayPane', for points it is 'markerPane'
-        if (this.options.pane === 'overlayPane' && response.geometryType === 'esriGeometryPoint') {
+        if (
+          this.options.pane === 'overlayPane' &&
+          response.geometryType === 'esriGeometryPoint'
+        ) {
           this.options.pane = 'markerPane';
         }
 
@@ -120,10 +124,11 @@ function wireUpRenderers () {
     var f;
 
     for (var i = 0, j = nPts - 1; i < nPts; j = i++) {
-      p1 = pts[i]; p2 = pts[j];
+      p1 = pts[i];
+      p2 = pts[j];
       twicearea += p1[0] * p2[1];
       twicearea -= p1[1] * p2[0];
-      f = (p1[0] * p2[1]) - (p2[0] * p1[1]);
+      f = p1[0] * p2[1] - p2[0] * p1[1];
       x += (p1[0] + p2[0]) * f;
       y += (p1[1] + p2[1]) * f;
     }
@@ -138,8 +143,8 @@ function wireUpRenderers () {
       id: geojson.id,
       geometry: {
         type: 'Point',
-        coordinates: [centroid[0], centroid[1]]
-      }
+        coordinates: [centroid[0], centroid[1]],
+      },
     };
   };
 
@@ -164,7 +169,7 @@ function wireUpRenderers () {
     var rendererInfo = serviceInfo.drawingInfo.renderer;
 
     var options = {
-      url: this.options.url
+      url: this.options.url,
     };
 
     if (this.options.token) {
@@ -185,7 +190,10 @@ function wireUpRenderers () {
 
     switch (rendererInfo.type) {
       case 'classBreaks':
-        this._checkForProportionalSymbols(serviceInfo.geometryType, rendererInfo);
+        this._checkForProportionalSymbols(
+          serviceInfo.geometryType,
+          rendererInfo
+        );
         if (this._hasProportionalSymbols) {
           this._createPointLayer();
           var pRend = classBreaksRenderer(rendererInfo, options);
@@ -206,6 +214,9 @@ function wireUpRenderers () {
 
 EsriLeaflet.FeatureLayer.addInitHook(wireUpRenderers);
 
-if (typeof EsriLeafletCluster !== 'undefined' && EsriLeafletClusterFeatureLayer) {
+if (
+  typeof EsriLeafletCluster !== 'undefined' &&
+  EsriLeafletClusterFeatureLayer
+) {
   EsriLeafletClusterFeatureLayer.addInitHook(wireUpRenderers);
 }

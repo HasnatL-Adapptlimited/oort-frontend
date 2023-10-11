@@ -13,7 +13,10 @@ export class AppOverlayContainer extends OverlayContainer {
    *
    * @param _platform Angular platform
    */
-  constructor(_platform: Platform, @Inject(DOCUMENT) private document: Document) {
+  constructor(
+    _platform: Platform,
+    @Inject(DOCUMENT) private document: Document
+  ) {
     super(document, _platform);
   }
 
